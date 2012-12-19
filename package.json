@@ -1,0 +1,24 @@
+{
+	"name": "roads-models",
+	"version": "0.1.0",
+	"author": {
+		"name": "Aaron Hedges",
+		"email": "aaron@dashron.com",
+		"url": "www.dashron.com"
+	},
+	"description": "A Node.js model system for mysql and redis",
+	"keywords": ["myslq", "redis", "model"],
+	"homepage": "github.com.com/Dashron/Roads-Models",
+	"bugs": { 
+		"url" : "http://github.com/Dashron/Roads-Models/issues", 
+		"email" : "aaron@dashron.com"
+	},
+	"repository" : { 
+		"type" : "git",
+		 "url" : "git://github.com/Dashron/Roads-Models.git"
+	},
+	"dependencies" : {
+		"mysql" : "2.0.0-alpha5",
+		"redis" : "*"
+	}
+}
