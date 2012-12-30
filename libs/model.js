@@ -134,9 +134,6 @@ ModelRequest.prototype.preload = function (field) {
 
 			for (i = 0; i < data.length; i++) {
 				if (typeof model_associations[data[i][field]] !== "undefined" && typeof model_associations[data[i][field]] !== null) {
-					// this won't work because it will overwrite the model variable, and any future saves will be fucked up
-					// this needs to be assigned to a private variable, which is then requested via another manner.
-					// we might be able to just build the new field off of the old field name, or set up an alias in the sql statement
 					data[i][assign_to] = model_associations[data[i][field]];
 				}
 			}

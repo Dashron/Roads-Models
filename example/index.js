@@ -20,10 +20,16 @@ connection.connect({
 	throw err;
 
 }).ready(function () {
-	var UserModel = require('./models/user');
-
-	UserModel.load(1).ready(function (user) {
+	require('./models/user').load(1).ready(function (user) {
+		console.log('individual load:');
 		console.log(user);
+	}).error(function (err) {
+		throw err;
+	});
+
+	require('./models/preload').getAll().preload('user_id').ready(function (preloads) {
+		console.log('preloads:');
+		console.log(preloads);
 	}).error(function (err) {
 		throw err;
 	});
