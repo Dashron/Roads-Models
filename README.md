@@ -20,7 +20,6 @@ this function takes sql, and parameters, and returns a ModelPromise
 ModelPromise.ready will be sent an array of models
 
 
-Each model will have a handful of functions too.
 ## Model
 
 ### save
