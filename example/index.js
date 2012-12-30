@@ -6,8 +6,9 @@ connection.connect({
 	"mysql" : {
 		"default" : {
 			"host": "localhost",
-			"user" : "test",
-			"database" : "test"
+			"user" : "roadsmodelstest",
+			"password" : 'roads',
+			"database" : "roadsmodelstest"
 		}
 	},
 	"redis" : {

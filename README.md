@@ -35,3 +35,41 @@ When saving a model, you will also have a validationError function, which will b
 
 When loading a collection, you will have a preload function. This takes a single parameter, the field name which should be "preloaded".
 Preloading allows you to perform mysql joins in node instead of mysql (and works better with caching).
+
+
+
+## Examples:
+
+Create the database using the following:
+
+	create database roadsmodelstest;
+	create user roadsmodelstest identified by 'roads';
+	grant all to roadsmodelstest on roadsmodelstest.*;
+	use roadsmodelstest;
+
+	CREATE TABLE `user` (
+	  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+	  `email` varchar(128) NOT NULL,
+	  `password` varchar(64) NOT NULL,
+	  `name` varchar(128) NOT NULL,
+	  `role` varchar(32) NOT NULL DEFAULT 'user',
+	  PRIMARY KEY (`id`)
+	);
+
+	CREATE TABLE `preload` (
+	  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+	  `user_id` int(10) unsigned NOT NULL,
+	  PRIMARY KEY (`id`)
+	);
+
+	insert into user (email, password, name, role) values ('aaron@dashron.com', '1234', 'aaron', 'user');
+	insert into user (email, password, name, role) values ('zena@dashron.com', '1234', 'zena', 'user');
+
+	insert into preload (user_id) values ((select id from user where name = 'aaron'));
+	insert into preload (user_id) values ((select id from user where name = 'zena'));
+	insert into preload (user_id) values ((select id from user where name = 'aaron'));
+	insert into preload (user_id) values ((select id from user where name = 'zena'));
+	insert into preload (user_id) values ((select id from user where name = 'zena'));
+	insert into preload (user_id) values ((select id from user where name = 'aaron'));
+
+Now from within the project directory, run ```node example/index.js```
