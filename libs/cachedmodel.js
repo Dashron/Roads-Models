@@ -479,7 +479,10 @@ CachedModel.prototype.save = function () {
 		save_promise.validationError(cached_promise._validationError.bind(cached_promise));
 	}
 	
-	save_promise.error(cached_promise._error.bind(cached_promise));
+	save_promise.error(function (err) {
+		cached_promise._error(err);
+	});
+
 	save_promise.ready(function (model) {
 		// todo: merge this with _buildCacheKey
 		_self.redis.set('models:' + _self._definition.table + ':' + _self.id, _self.toString());
