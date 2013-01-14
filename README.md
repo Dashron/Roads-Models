@@ -7,6 +7,8 @@ The documentation is a work in progress as I continue to add features and test t
 
 Your first step is to create the ModelModule. Base this off the example. Each module will have a handful of properties.
 
+## Module
+
 ### load 
 This function takes two parameters, the first is a value to load a single record off of. the second is the field to search in. the second parameter defaults to id.
 
@@ -18,7 +20,7 @@ this function takes sql, and parameters, and returns a ModelPromise
 ModelPromise.ready will be sent an array of models
 
 
-Each model will have a handful of functions too.
+## Model
 
 ### save
 This function returns a ModelPromise. When called it saves a model to the db, and if new assigns the ID to the model.
@@ -27,7 +29,7 @@ This function returns a ModelPromise. When called it saves a model to the db, an
 This function returns a ModelPromise. When called it will delete the record from the db
 
 
-
+## ModelPromise
 ModelPromises work in two ways:
 In any of the ways, you want to use the ready function to assign an on ready handler (passed one or many models), and the error function to assign an on error handler (passed one error object)
 
