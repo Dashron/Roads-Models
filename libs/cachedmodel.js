@@ -191,7 +191,7 @@ CachedModelModule.prototype.cachedCollection = function (sql, params, options) {
 CachedModelModule.prototype.getTime = function (key, callback, error) {
 	var _self = this;
 
-	this.redis.get('cache:times:' + key, function (err, val) {
+	this.redis.get('cache:times:' + key, function redis_get_times(err, val) {
 		if (err) {
 			if (typeof error === "function") {
 				return error(err);
@@ -218,7 +218,7 @@ CachedModelModule.prototype.setTime = function (key, callback, error) {
 
 	// if its not found, set it
 	var now = Date.now() / 1000;
-	this.redis.set('cache:times:' + key, now, function (err) {
+	this.redis.set('cache:times:' + key, now, function redis_set_time(err) {
 		if (err && error) {
 			if (typeof error === "function") {
 				return error(err);
@@ -307,7 +307,10 @@ CachedModelModule.prototype.loadFromDB = function (value, field) {
 	var promise = CachedModelModule.super_.prototype.load.call(_self, value, field);
 
 	promise.addModifier(function (model) {
-		_self.redis.set(_self._buildCacheKey({}, [model.id]), model.toString());
+		if (model) {
+			_self.redis.set(_self._buildCacheKey({}, [model.id]), model.toString());
+		}
+		
 		this._ready(model);
 	});
 
