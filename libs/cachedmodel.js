@@ -468,17 +468,19 @@ CachedModel.prototype.redis = null;
 
 /**
  *
- * @todo turn this into one promise
+ * @todo turn this into one promise. Investigate using addModifier to handle redis.set
  */
 CachedModel.prototype.save = function () {
 	var _self = this;
 	var cached_promise = new CachedModelRequest(this);
 	var save_promise = CachedModel.super_.prototype.save.call(this);
 
-	if (cached_promise._validationError) {
-		save_promise.validationError(cached_promise._validationError.bind(cached_promise));
-	}
+	// this can not use bind, otherwise it will bind to the default validation error handler
+	save_promise.validationError(function (invalid_fields) {
+		cached_promise._validationError(invalid_fields);
+	});
 	
+	// this can not use bind, otherwise it will bind to the default error handler
 	save_promise.error(function (err) {
 		cached_promise._error(err);
 	});
