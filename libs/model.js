@@ -281,8 +281,9 @@ Model.prototype['delete'] = function () {
 				return;
 			}
 
+			var old_id = _self.id;
 			_self.id = null;
-			_self._onDelete(delete_request);
+			_self._onDelete(delete_request, old_id);
 		}
 	);
 
