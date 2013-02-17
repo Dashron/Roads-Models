@@ -500,13 +500,15 @@ CachedModel.prototype.save = function () {
  */
 CachedModel.prototype['delete'] = function () {
 	var _self = this;
+	var old_id = _self.id;
+
 	var cached_promise = new ModelRequest(this);
 	var delete_promise = CachedModel.super_.prototype['delete'].call(this);
 
 	delete_promise.validationError(cached_promise._validationError);
 	delete_promise.error(cached_promise._error);
 	delete_promise.ready(function (model) {
-		_self.redis.del('models:' + _self._definition.table + ':' + _self.id);
+		_self.redis.del('models:' + _self._definition.table + ':' + old_id);
 		cached_promise._ready(null);
 	});
 
