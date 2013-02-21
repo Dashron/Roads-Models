@@ -117,6 +117,36 @@ CachedModelModule.prototype.buildCacheKey = function (options, params, callback,
 	}
 };
 
+/**
+ * Push an item onto a collection cache
+ * 
+ * @param {[type]} key_options [description]
+ * @param {[type]} params      [description]
+ * @param {[type]} val         [description]
+ */
+CachedModelModule.prototype.addToCachedCollection = function (key_options, params, val, request) {
+	var _self = this;
+
+	this.buildCacheKey(key_options, params, function (key) {
+		_self.redis.sadd(key, val);
+	}, request);
+};
+
+/**
+ * Remove an item from a collection cache
+ * 
+ * @param  {[type]} key_options [description]
+ * @param  {[type]} params      [description]
+ * @param  {[type]} val         [description]
+ * @return {[type]}             [description]
+ */
+CachedModelModule.prototype.removeFromCachedCollection = function (key_options, params, val, request) {
+	var _self = this;
+
+	this.buildCacheKey(key_options, params, function (key) {
+		_self.redis.srem(key, val);
+	}, request);
+};
 
 /**
  * [cachedCollection description]
