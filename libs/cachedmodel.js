@@ -502,26 +502,12 @@ CachedModel.prototype.redis = null;
  */
 CachedModel.prototype.save = function () {
 	var _self = this;
-	var cached_promise = new CachedModelRequest(this);
-	var save_promise = CachedModel.super_.prototype.save.call(this);
 
-	// this can not use bind, otherwise it will bind to the default validation error handler
-	save_promise.validationError(function (invalid_fields) {
-		cached_promise._validationError(invalid_fields);
-	});
-	
-	// this can not use bind, otherwise it will bind to the default error handler
-	save_promise.error(function (err) {
-		cached_promise._error(err);
-	});
-
-	save_promise.ready(function (model) {
-		// todo: merge this with _buildCacheKey
-		_self.redis.set('models:' + _self._definition.table + ':' + _self.id, _self.toString());
-		cached_promise._ready(model);
-	});
-
-	return cached_promise;
+	return CachedModel.super_.prototype.save.call(this)
+		.addModifier(function (model) {
+			_self.redis.set('models:' + _self._definition.table + ':' + _self.id, _self.toString());
+			this._ready(model);
+		});
 };
 
 /**
@@ -532,15 +518,9 @@ CachedModel.prototype['delete'] = function () {
 	var _self = this;
 	var old_id = _self.id;
 
-	var cached_promise = new ModelRequest(this);
-	var delete_promise = CachedModel.super_.prototype['delete'].call(this);
-
-	delete_promise.validationError(cached_promise._validationError);
-	delete_promise.error(cached_promise._error);
-	delete_promise.ready(function (model) {
-		_self.redis.del('models:' + _self._definition.table + ':' + old_id);
-		cached_promise._ready(null);
-	});
-
-	return cached_promise;	
+	return CachedModel.super_.prototype['delete'].call(this)
+		.addModifier(function (model) {
+			_self.redis.del('models:' + _self._definition.table + ':' + old_id);
+			this._ready(model);
+		});
 };
