@@ -6,22 +6,23 @@
 "use strict";
 var connection_types = {};
 var connections = {};
+var util_module = require('util');
 
 /**
  *
  * @param Constructor should look like function (config, callback), where config is an object, and callback looks like function (err, connection_object)
  */
-module.exports.addType = function (key, constructor) {
-	connection_types[key] = constructor;
+module.exports.addConnectionType = function (key, connection_type) {
+	connection_types[key] = connection_type;
 };
 
 /**
  *
- *
+ * Returns the actual library object for the connection (eg. the redis client, not the roads-models redis connection object)
  *
  */
-module.exports.getConnection = function (type, key) {
-	return connections[type][key];
+module.exports.getConnection = function (type, connection_type) {
+	return connections[type][connection_type].connection;
 };
 
 /**
@@ -31,7 +32,7 @@ module.exports.getConnection = function (type, key) {
  */
 module.exports.connect = function (config)
 {
-	var promise = new module.exports.ConnectionPromise(config);
+	var promise = new module.exports.ConnectionRequest(config);
 	var type = null;
 	var key = null;
 
@@ -50,38 +51,63 @@ module.exports.connect = function (config)
 	return promise;
 };
 
-var ConnectionPromise = module.exports.ConnectionPromise = function (config) {
+/**
+ * [ description]
+ * @return {[type]} [description]
+ */
+module.exports.disconnect = function ()
+{
+	var type = null;
+	var key = null;
+	var connection_type = null;
+
+	for (type in connections) {
+		connection_type = connections[type];
+
+		for (key in connection_type) {
+			connection_type[key].disconnect();
+		}
+	}
+};
+
+/**
+ * Simply used to provide an object for module.exports.connect
+ * This concept really needs to be put into it's own module
+ * @param  {[type]} config [description]
+ * @return {[type]}        [description]
+ */
+var ConnectionRequest = module.exports.ConnectionRequest = function (config) {
 	var _self = this;
 	_self._config = config;
 	_self._in_progress = {};
 };
 
-ConnectionPromise.prototype._ready = function (data) {
+ConnectionRequest.prototype._ready = function (data) {
 	this.ready = function (fn) {
 		fn(data);
 	};
 };
 
-ConnectionPromise.prototype._error = function (err) {
+ConnectionRequest.prototype._error = function (err) {
 	this.error = function (fn) {
 		fn(err);
 	};
 };
 
-ConnectionPromise.prototype.ready = function (fn) {
+ConnectionRequest.prototype.ready = function (fn) {
 	this._ready = fn;
 	return this;
 };
 
-ConnectionPromise.prototype.error = function (fn) {
+ConnectionRequest.prototype.error = function (fn) {
 	this._error = fn;
 	return this;
 };
 
-ConnectionPromise.prototype._in_progress = null;
-ConnectionPromise.prototype._config = null;
+ConnectionRequest.prototype._in_progress = null;
+ConnectionRequest.prototype._config = null;
 
-ConnectionPromise.prototype.connect = function (type, key) {
+ConnectionRequest.prototype.connect = function (type, key) {
 	var _self = this;
 
 	if (!_self._in_progress[type]) {
@@ -91,13 +117,20 @@ ConnectionPromise.prototype.connect = function (type, key) {
 	_self._in_progress[type][key] = true;
 
 	console.log("Adding connection for : " + type + ' : ' + key);
-	connection_types[type](_self._config[type][key], function (err, connection) {
+	var ConnectionType = connection_types[type];
+
+	if (!ConnectionType) {
+		throw new Error('Could not location connection type [' + type + ']');
+	}
+
+	var connection = new ConnectionType(_self._config[type][key]);
+	
+	connection.ready(function (err, connection) {
 		console.log('Connection complete for : ' + type + ' : ' + key);
 		if (err) {
 			return _self._error(err);
 		}
 
-		connections[type][key] = connection;
 		delete _self._in_progress[type][key];
 
 		// once all of one type have been loaded, clear it out
@@ -110,6 +143,32 @@ ConnectionPromise.prototype.connect = function (type, key) {
 			_self._ready();
 		}
 	});
+
+	connections[type][key] = connection;
+};
+
+
+
+/**
+ * [ description]
+ * @param  {[type]} config [description]
+ * @return {[type]}        [description]
+ */
+var ConnectionType = module.exports.ConnectionType = function (config) {
+	this.config = config;
+};
+
+ConnectionType.prototype.connection = null;
+ConnectionType.prototype.config = null;
+
+ConnectionType.prototype._ready = function (data) {
+	this.ready = function (fn) {
+		fn(data);
+	};
+};
+
+ConnectionType.prototype.ready = function (fn) {
+	this._ready = fn;
 };
 
 var redis_module = null;
@@ -122,50 +181,75 @@ var redis_module = null;
  * @param  {Object} config {port: , host: , options: }
  * @return {Connection}
  */
-var redis_connector = module.exports.Redis = function (config, fn) {
+var RedisConnection = module.exports.Redis = function (config) {
+	var _self = this;
+	ConnectionType.call(this, config);
+
 	if (!redis_module) {
 		redis_module = require('redis');
 	}
 	
-	var client = redis_module.createClient(config.port, config.host, config.options);
+	this.connection = redis_module.createClient(config.port, config.host, config.options);
 
 	if (config.password) {
-		client.auth(config.password, function () {});
+		this.connection.auth(config.password, function () {});
 	}
 
 	// todo handle reconnection and authentication
-	client.on('connect', function () {
+	this.connection.on('connect', function () {
 		// we only track pre-connection errors in this system
-		fn(null, client);
+		_self._ready(null, this.connection);
 	});
 
-	client.on('error', function (err) {
-		fn(err);
+	this.connection.on('error', function (err) {
+		_self._ready(err);
 	});
 };
 
+util_module.inherits(RedisConnection, ConnectionType);
+
+RedisConnection.prototype.disconnect = function () {
+	this.connection.quit();
+};
+
+
 var mysql_module = null;
 
-var mysql_connector = module.exports.Mysql = function (config, fn) {
+/**
+ * [ description]
+ * @param  {[type]} config [description]
+ * @return {[type]}        [description]
+ */
+var MysqlConnection = module.exports.Mysql = function (config) {
+	var _self = this;
+	ConnectionType.call(this, config);
+	
 	if (!mysql_module) {
 		mysql_module = require('mysql');
 	}
 
-	var connection = mysql_module.createConnection(config);
+	this.connection = mysql_module.createConnection(config);
 	
 	//todo handle reconnection
-	connection.on('error', function (err) {
-		fn(err);
+	this.connection.on('error', function (err) {
+		_self._ready(err);
 	});
 
-	connection.connect(function (err) {
+	this.connection.connect(function (err) {
 		if (err) {
-			fn(err);
+			_self._ready(err);
 		} else {
-			fn(null, connection);
+			_self._ready(null, this.connection);
 		}
 	});
 };
 
-module.exports.addType("mysql", mysql_connector);
-module.exports.addType("redis", redis_connector);
+util_module.inherits(MysqlConnection, ConnectionType);
+
+MysqlConnection.prototype.disconnect = function () {
+	this.connection.end();
+};
+
+// todo move this into the config
+module.exports.addConnectionType("mysql", MysqlConnection);
+module.exports.addConnectionType("redis", RedisConnection);

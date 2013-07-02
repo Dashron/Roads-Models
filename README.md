@@ -39,6 +39,10 @@ When loading a collection, you will have a preload function. This takes a single
 Preloading allows you to perform mysql joins in node instead of mysql (and works better with caching).
 
 
+## ConnectionType
+
+This object is used as a wrapper to handle connecting and disconnecting to one or many different types of connections.
+If you wish to add a different database or caching layer, inherit this like the redis or mysql connection found in connection.js
 
 ## Examples:
 

@@ -21,9 +21,16 @@ connection.connect({
 	throw err;
 
 }).ready(function () {
+	var status = {};
+
 	require('./models/user').load(1).ready(function (user) {
 		console.log('individual load:');
 		console.log(user);
+		status.user = true;
+
+		if (status.preload) {
+			end();
+		}
 	}).error(function (err) {
 		throw err;
 	});
@@ -31,8 +38,17 @@ connection.connect({
 	require('./models/preload').getAll().preload('user_id').ready(function (preloads) {
 		console.log('preloads:');
 		console.log(preloads);
+		status.preload = true;
+
+		if (status.user) {
+			end();
+		}
 	}).error(function (err) {
 		throw err;
 	});
 
+	function end()
+	{
+		connection.disconnect();
+	}
 });

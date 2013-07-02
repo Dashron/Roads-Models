@@ -394,6 +394,10 @@ CachedModelModule.prototype._getFromCache = function (key, callback, error) {
 		key = key.join(':');
 	}
 
+	if (!this.redis) {
+		throw new Error('You can not use a cached model without having a redis object assigned');
+	}
+
 	this.redis.get(key, function (err, data) {
 		if (err) {
 			if (typeof error === "function") {
