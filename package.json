@@ -1,6 +1,6 @@
 {
 	"name": "roads-models",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"author": {
 		"name": "Aaron Hedges",
 		"email": "aaron@dashron.com",
@@ -8,7 +8,7 @@
 	},
 	"description": "A Node.js model system for mysql and redis",
 	"keywords": ["myslq", "redis", "model"],
-	"homepage": "github.com.com/Dashron/Roads-Models",
+	"homepage": "http://github.com.com/Dashron/Roads-Models",
 	"bugs": { 
 		"url" : "http://github.com/Dashron/Roads-Models/issues", 
 		"email" : "aaron@dashron.com"
