@@ -12,72 +12,6 @@ var ModelRequest = model_component.ModelRequest;
 var ModelModule = model_component.ModelModule;
 var Model = model_component.Model;
 
-var CachedModelRequest = module.exports.CachedModelRequest = function CachedModelRequest (target, key) {
-	ModelRequest.call(this, target);
-	this._cache_key = key;
-};
-
-util_module.inherits(CachedModelRequest, ModelRequest);
-
-CachedModelRequest._cache_key = null;
-
-CachedModelRequest.prototype.preload = function (field) {
-	var _self = this;
-
-	if (typeof this._definition.fields[field] !== "object") {
-		throw new Error('The field ' + field + ' is not part of the model definition');
-	}
-
-	var field_definition = this._definition.fields[field];
-
-	if (typeof field_definition.assign_to !== "string") {
-		throw new Error('Any preloaded objects must have an assign_to field in their definition');
-	}
-
-	var assign_to = field_definition.assign_to;
-
-	if (typeof field_definition.model_module !== "object") {
-		throw new Error('Any preloaded objects must have a model field in their definition');
-	}
-
-	var model_module = field_definition.model_module;
-	var original_promise = this;
-
-	this.addModifier(function (data) {
-		var ids = new Array(data.length);
-		var i = 0;
-		var model_associations = {};
-		var model_promise = null;
-
-		// find all of the ids from the data array
-		for (i = 0; i < data.length; i++) {
-			ids[i] = data[i][field];
-		}
-
-		model_promise = new ModelRequest(model_module);
-
-		model_promise.ready(function (models) {
-			// build a list of id => model to ensure a record exists
-			for (i = 0; i < models.length; i++) {
-				model_associations[models[i].id] = models[i];
-			}
-
-			for (i = 0; i < data.length; i++) {
-				if (typeof model_associations[data[i][field]] !== "undefined" && typeof model_associations[data[i][field]] !== null) {
-					data[i][assign_to] = model_associations[data[i][field]];
-				}
-			}
-
-			original_promise._ready(data);
-
-		}).error(original_promise._error.bind(original_promise));
-
-		model_module._locateModels(ids, model_promise);
-	});
-
-	return this;
-};
-
 var CachedModelModule = module.exports.CachedModelModule = function CachedModelModule () {
 	ModelModule.call(this);
 };
@@ -156,7 +90,7 @@ CachedModelModule.prototype.removeFromCachedCollection = function (key_options, 
  * @return {[type]}         [description]
  */
 CachedModelModule.prototype.cachedCollection = function (sql, params, options) {
-	var cached_promise = new CachedModelRequest(this);
+	var cached_promise = new ModelRequest(this);
 
 	if (!Array.isArray(params)) {
 		options = params;
@@ -266,11 +200,10 @@ CachedModelModule.prototype.setTime = function (key, callback, error) {
 /**
  *
  * This is not called cached load because we do not need a cache key.
- * Fuck consistency with the cachedcollection module, I wish cached collection would just work too
  */
 CachedModelModule.prototype.load = function (value, field) {
 	var _self = this;
-	var cached_promise = new CachedModelRequest(this);
+	var cached_promise = new ModelRequest(this);
 
 	if (typeof value === "undefined") {
 		throw new Error('You can not load an object with an undefined value');
@@ -452,7 +385,7 @@ CachedModelModule.prototype._locateModels = function (ids, promise) {
 		// If there were any items not found in cache, find them in the database
 		if (sql_ids.length) {
 			var id_list = sql_ids.join(',');
-			_self.connection.query('select * from ' + _self._definition.table + ' where id in (' + id_list + ') ORDER BY FIELD(id,' + id_list + ')', function (err, rows, cols) {
+			_self.connection.query('select * from ' + _self._definition.table + ' where id in (' + id_list + ') ORDER BY FIELD (id,' + id_list + ')', function (err, rows, cols) {
 				if (err) {
 					return promise._error(err);
 				}

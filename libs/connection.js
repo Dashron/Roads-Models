@@ -198,7 +198,7 @@ var RedisConnection = module.exports.Redis = function (config) {
 	// todo handle reconnection and authentication
 	this.connection.on('connect', function () {
 		// we only track pre-connection errors in this system
-		_self._ready(null, this.connection);
+		_self._ready(null, _self.connection);
 	});
 
 	this.connection.on('error', function (err) {
@@ -239,7 +239,7 @@ var MysqlConnection = module.exports.Mysql = function (config) {
 		if (err) {
 			_self._ready(err);
 		} else {
-			_self._ready(null, this.connection);
+			_self._ready(null, _self.connection);
 		}
 	});
 };

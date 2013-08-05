@@ -117,14 +117,24 @@ ModelRequest.prototype.preload = function (field) {
 		var i = 0;
 		var model_associations = {};
 		var model_promise = null;
+		var unravel = false;
+		
+		// if we loaded a single object, make the sql work as is but then return a single object at the end
+		if (!Array.isArray(data)) {
+			if (typeof data === "object") {
+				data = [data];
+				unravel = true;
+			} else {
+				return this._error(new Error('Invalid data provided to the preload addModifier callback'));
+			}
+		}
 
 		// find all of the ids from the data array
 		for (i = 0; i < data.length; i++) {
 			ids[i] = data[i][field];
 		}
 
-		// find all associated models where the id = data[field]
-		model_promise = model_module.collection('select * from ' + model_module._definition.table + ' where id in (' + ids.join(',') + ')');
+		model_promise = new ModelRequest(model_module);
 
 		model_promise.ready(function (models) {
 			// build a list of id => model to ensure a record exists
@@ -138,12 +148,14 @@ ModelRequest.prototype.preload = function (field) {
 				}
 			}
 
-			original_promise._ready(data);
-		});
+			if (unravel) {
+				original_promise._ready(data[0]);
+			} else {
+				original_promise._ready(data);
+			}
+		}).error(original_promise._error.bind(original_promise));
 
-		model_promise.error(function (error) {
-			original_promise._error(error);
-		});
+		model_module._locateModels(ids, model_promise);
 	});
 
 	return this;
@@ -468,6 +480,16 @@ ModelModule.prototype.collection = function (sql, params) {
 	});
 
 	return request;
+};
+
+/**
+ * [ description]
+ * @param  {[type]} ids     [description]
+ * @param  {[type]} promise [description]
+ * @return {[type]}         [description]
+ */
+ModelModule.prototype._locateModels = function (ids, promise) {
+	return promise.collection('select * from ' + this._definition.table + ' where id in (' + ids.join(',') + ')');
 };
 
 var ValidationHandler = function (model) {
