@@ -88,3 +88,8 @@ Create the database using the following:
 	insert into preload (user_id) values ((select id from user where name = 'aaron'));
 
 Now from within the project directory, run ```node example/index.js```
+
+
+#TODO
+
+Connection pools

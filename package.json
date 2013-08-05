@@ -1,6 +1,6 @@
 {
 	"name": "roads-models",
-	"version": "0.2.1",
+	"version": "0.3.0",
 	"author": {
 		"name": "Aaron Hedges",
 		"email": "aaron@dashron.com",
@@ -18,7 +18,7 @@
 		 "url" : "git://github.com/Dashron/Roads-Models.git"
 	},
 	"dependencies" : {
-		"mysql" : "2.0.0-alpha5",
+		"mysql" : "2.0.0-alpha8",
 		"redis" : "*"
 	}
 }
