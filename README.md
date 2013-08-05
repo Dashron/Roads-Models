@@ -33,16 +33,25 @@ This function returns a ModelPromise. When called it will delete the record from
 ModelPromises work in two ways:
 In any of the ways, you want to use the ready function to assign an on ready handler (passed one or many models), and the error function to assign an on error handler (passed one error object)
 
+###Saving
 When saving a model, you will also have a validationError function, which will be called if validation fails on any of the model fields. The first parameter is an object representing the invalid fields.
 
-When loading a collection, you will have a preload function. This takes a single parameter, the field name which should be "preloaded".
-Preloading allows you to perform mysql joins in node instead of mysql (and works better with caching).
+###Loading
+When loading a collection, you will have a preload function. Preloading allows you to perform mysql joins in node instead of mysql (and works better with caching).
+
+The preload method takes a single parameter, the field name which should be preloaded. This field in the model definition should define which model to load, and what key to assign the model to.
+
 
 
 ## ConnectionType
 
-This object is used as a wrapper to handle connecting and disconnecting to one or many different types of connections.
-If you wish to add a different database or caching layer, inherit this like the redis or mysql connection found in connection.js
+To create new ConnectionTypes, you must follow these steps
+
+1. Extend the require('Roads-Models').Connection.ConnectionType object.
+2. Create the connection in the constructor. The constructor takes your config object, and assigns the connection to `this.connection`
+3. In the case of an error, you should call this._ready(err);
+4. On success you should call this._ready(null, this.connection);
+5. You must also implement the `disconnect` method, so all connections can be closed when necessary
 
 ## Examples:
 
