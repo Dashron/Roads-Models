@@ -51,7 +51,15 @@ ModelRequest.prototype._ready = function (data) {
 };
 
 ModelRequest.prototype.error = function (fn) {
-	this._error = fn;
+	// allow you to pass model requests directly into the error
+	if (typeof fn === "object" && typeof fn._error === "function") {
+		this._error = function (err) {
+			fn._error(err);
+		};
+	} else {
+		this._error = fn;
+	}
+
 	return this;
 };
 
@@ -184,7 +192,7 @@ var Model = module.exports.Model = function Model (data) {
 	// we have to set this a second time to wipe out any updated field markers from setting the initial data
 	this._updated_fields = {};
 };
-
+// todo: flywheel this off of the table name
 Model.prototype._definition = null;
 Model.prototype._updated_fields = null;
 Model.prototype._onSave = function (request) {
@@ -303,11 +311,18 @@ Model.prototype['delete'] = function () {
 };
 
 /**
- *
- *
- *
+ * [ description]
+ * @return {[type]} [description]
  */
 Model.prototype.toString = function () {
+	return JSON.stringify(this.dataObject());
+};
+
+/**
+ * [ description]
+ * @return {[type]} [description]
+ */
+Model.prototype.dataObject = function () {
 	var data = {};
 
 	for (var field in this._definition.fields) {
@@ -317,8 +332,7 @@ Model.prototype.toString = function () {
 		data[field] = this[field];
 	}
 
-	// todo: json is slow
-	return JSON.stringify(data);
+	return data;
 };
 
 /**

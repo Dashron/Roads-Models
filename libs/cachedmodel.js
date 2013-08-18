@@ -35,6 +35,10 @@ CachedModelModule.prototype.buildCacheKey = function (options, params, callback,
 		options = { key : { value : options } };
 	}
 
+	if (typeof options.key === "string") {
+		options.key = { value : options.key };
+	}
+
 	if (!Array.isArray(params)) {
 		error = callback;
 		callback = params;
@@ -86,18 +90,91 @@ CachedModelModule.prototype.removeFromCachedCollection = function (key_options, 
  * [cachedCollection description]
  * @param  {[type]} sql     [description]
  * @param  {[type]} params  Optional, if not an array, this value will be used in place of "options"
- * @param  {[type]} options can be string, will become { key : { value : options } }
+ * @param  {[type]} options can be string, directly sent to buildCacheKey
  * @return {[type]}         [description]
  */
 CachedModelModule.prototype.cachedCollection = function (sql, params, options) {
-	var cached_promise = new ModelRequest(this);
+	if (!Array.isArray(params)) {
+		options = params;
+		params = [];
+	}
+
+	if (options.sort) {
+		return this._sortedCachedCollection(sql, params, options);
+	} else {
+		return this._unsortedCachedCollection(sql, params, options);
+	}
+}
+
+/**
+ * First we check for the final sorted set of key values, as set by the last parameter of the sort command.
+ * -hit 
+ *  locateModels with the returned ids
+ *  
+ * -miss
+ *  attempt to find stored hash for this sql statement
+ *  -hit
+ *   run redis sort on hash, and set the value into a key
+ *   locateModels with the returned ids
+ *   
+ *  -miss
+ *   run sql, and store the resulting rows into a redis hash
+ *   run redis sort on hash and set the value into a key
+ *   locateModels with the returned ids
+ *
+ *
+ * On update
+ *  - set value into hash
+ *  - run sort query again
+ *
+ * On delete
+ *  - delete value from hash
+ *  - run sort query again
+ *
+ *
+ * WHY? What's the benefit of doing all this bullshit using redis's built in stuff.
+ * We know all the collections, maybe we update hashed collections in place, and have duplicate data everywhere? 
+ *  -No, if one fails everything will be out of sync
+ * Maybe we just store in standard sets, using sorted keys. The problem here is we rely on new mysql calls to update any sort data.
+ * If we are storing, we might as well store in a hash so we have all the data to sort in the future. Redis might be better than mysql for sorting? investigate both
+ *
+ * 
+ * @param  {[type]} sql     [description]
+ * @param  {[type]} params  [description]
+ * @param  {[type]} options [description]
+ * @return {[type]}         [description]
+ */
+CachedModelModule.prototype._sortedCachedCollection = function (sql, params, options) {
+	var _self = this;
+
+	if (options.sort) {
+		if (!options.sort.field) {
+			options.sort.field = 'id';
+		}
+		
+		if (!options.sort.direction) {
+			options.sort.direction = 'DESC';
+		}
+	}
+
+};
+
+/**
+ * [ description]
+ * @param  {[type]} sql     [description]
+ * @param  {[type]} params  [description]
+ * @param  {[type]} options [description]
+ * @return {[type]}         [description]
+ */
+CachedModelModule.prototype._unsortedCachedCollection = function (sql, params, options) {
+	var _self = this;
 
 	if (!Array.isArray(params)) {
 		options = params;
 		params = [];
 	}
 
-	var _self = this;
+	var cached_promise = new ModelRequest(this);
 
 	this.buildCacheKey(options, params, function (key, ttl) {
 		_self.redis.smembers(key, function (err, ids) {
@@ -108,33 +185,31 @@ CachedModelModule.prototype.cachedCollection = function (sql, params, options) {
 
 			// If no ID's were found, run an SQL query
 			if (!ids || !ids.length) {
-				var db_promise = _self.collection(sql, params);
-
-				db_promise.error(cached_promise._error.bind(cached_promise));
-
-				db_promise.ready(function (collection) {
-					// Generate a list of all the ID's' of the items we need to find
-					var ids = [];
-					for (var i = 0; i < collection.length; i ++) {
-						ids.push(collection[i].id);
-					}
-
-					if (ids.length) {
-						// Cache all of the ID's so we don't have to do a database lookup in the future
-						if (ttl) {
-							_self.redis.sadd(key, ids, function (err, rows) {
-								_self.redis.expire(key, ttl);
-							});
-						} else {
-							_self.redis.sadd(key, ids);
+				_self.collection(sql, params)
+					.error(cached_promise._error.bind(cached_promise))
+					.ready(function (collection) {
+						// Generate a list of all the ID's' of the items we need to find
+						var ids = [];
+						for (var i = 0; i < collection.length; i ++) {
+							ids.push(collection[i].id);
 						}
 
-						// Turn the ID's into models
-						return _self._locateModels(ids, cached_promise);
-					}
+						if (ids.length) {
+							// Cache all of the ID's so we don't have to do a database lookup in the future
+							if (ttl) {
+								_self.redis.sadd(key, ids, function (err, rows) {
+									_self.redis.expire(key, ttl);
+								});
+							} else {
+								_self.redis.sadd(key, ids);
+							}
 
-					cached_promise._ready([]);
-				});
+							// Turn the ID's into models
+							return _self._locateModels(ids, cached_promise);
+						}
+
+						cached_promise._ready([]);
+					});
 			} else {
 				// Turn the string list of ID's found from redis into models
 				_self._locateModels(ids, cached_promise);
@@ -203,101 +278,84 @@ CachedModelModule.prototype.setTime = function (key, callback, error) {
  */
 CachedModelModule.prototype.load = function (value, field) {
 	var _self = this;
-	var cached_promise = new ModelRequest(this);
+	var cache_request = new ModelRequest(this);
 
 	if (typeof value === "undefined") {
 		throw new Error('You can not load an object with an undefined value');
 	}
 
-	// load from an alternative field
-	if (typeof field === "undefined" || field === 'id') {
-		
-		this._getFromCache(_self._buildCacheKey({}, [value]), function (data) {
-			if (data) {
-				cached_promise._ready(new _self.Model(data));
-			} else {
-				var promise = _self.loadFromDB(value, field);
-				promise.error(cached_promise._error.bind(cached_promise));
-				promise.ready(cached_promise._ready.bind(cached_promise));
-			}
-		}, cached_promise);
-
-	} else {
-		this._getFromCache(_self._buildCacheKey({key : field}, [value]), function (id) {
-			// if the id can not be found, load the model and set the id
-			if (id) {
-				_self._getFromCache(_self._buildCacheKey({}, [id]), function (data) {
-					if (data) {
-						return cached_promise._ready(new _self.Model(data));
-					} else {
-						var promise = _self.loadFromDB(value, field);
-						promise.error(cached_promise._error.bind(cached_promise));
-						promise.ready(cached_promise._ready.bind(cached_promise));
-					}
-				}, cached_promise);
-
-			} else {
-				var load_promise = _self.loadFromDB(value, field);
-
-				load_promise.error(cached_promise._error.bind(cached_promise));
-
-				load_promise.ready(function (model) {
-					if (model) {
-						_self.redis.set(_self._buildCacheKey({key : field}, [value]), model.id);
-						_self.redis.set(_self._buildCacheKey({}, [model.id]), model.toString());
-					} else {
-						_self.redis.del(_self._buildCacheKey({key : field}, [value]));
-					}
-
-					cached_promise._ready(model);
-				});
-			}
-		}, cached_promise);
+	if (typeof field === "undefined") {
+		field = "id";
 	}
 
-	return cached_promise;
+	if (field === 'id') {
+		// if they want an id field, it's easy to find, we have the key
+		this._locateModels(value, cache_request);
+	} else {
+		// if they want an alternate field, we have a key to id mapping
+		this.redis.get(_self._buildCacheKey({key : field}, [value]), function (err, id) {
+			if (err) {
+				return cache_request._error(err);
+			}
+
+			if (id) {
+				// if we find the key to id mapping, try to find the proper db objet
+				_self._locateModels(id, cache_request);
+
+			} else {
+				// if we don't find the key to id mapping, find the db object and update the mappings
+				CachedModelModule.super_.prototype.load.call(_self, value, field)
+					.ready(function (model) {
+						if (model) {
+							// if we find the db value, update the mapping
+							_self.redis.set(_self._buildCacheKey({key : field}, [value]), model.id);
+							// and update the model
+							_self.redis.hmset('models:' + _self._definition.table + ':' + _self.id, model.dataObject());
+						} else {
+							// if we can't find the db value, make sure to delete everything just in case
+							// one of these might not be necessary. todo: a thorough investigation as to why they were here
+							_self.redis.del(_self._buildCacheKey({key : field}, [value]));
+							_self.redis.hmdel('models:' + _self._definition.table + ':' + _self.id, model.dataObject());
+						}
+
+						cache_request._ready(model);
+					})
+					.error(cache_request);
+			}
+		});
+	}
+
+	return cache_request;
 };
 
 /**
- * [loadFromDB description]
- * @param  {[type]} value [description]
- * @param  {[type]} field [description]
- * @return {[type]}       [description]
- */
-CachedModelModule.prototype.loadFromDB = function (value, field) {
-	var _self = this;
-
-	var promise = CachedModelModule.super_.prototype.load.call(_self, value, field);
-
-	promise.addModifier(function (model) {
-		if (model) {
-			_self.redis.set(_self._buildCacheKey({}, [model.id]), model.toString());
-		}
-		
-		this._ready(model);
-	});
-
-	return promise;
-};
-
-/**
- * [setModel description]
+ * Assign the model definition to the model module
+ * 
  * @param {[type]} definition [description]
  */
 CachedModelModule.prototype.setModel = function (definition) {
 	CachedModelModule.super_.prototype.setModel.call(this, definition, CachedModel);
+	// todo: I don't like this, find another way to access the redis object
 	this.Model.prototype.redis = this.redis;
 	this._cache_prefix = 'models:' + this._definition.table;
 };
 
 /**
- * [_buildCacheKey description]
+ * Synchronous cache key builder. Does not look up cache times or anything complicated.
+ * It simply turns the two parameters into a consistent string value
+ * 
  * @param  {[type]} key     [description]
  * @param  {[type]} params  [description]
  * @param  {[type]} options [description]
  * @return {[type]}         [description]
  */
 CachedModelModule.prototype._buildCacheKey = function (options, params) {
+	// allow the options parameter to be ignored
+	if (typeof params === "undefined") {
+		params = options;
+		options = {};
+	}
+
 	var cache_key = this._cache_prefix;
 
 	if (options.key && options.key.value) {
@@ -308,6 +366,10 @@ CachedModelModule.prototype._buildCacheKey = function (options, params) {
 		cache_key += ':' + params.join(':');
 	}
 
+	if (options.sort) {
+		cache_key += ':' + options.sort.field + ':' + options.sort.direction;
+	}
+
 	if (options.key && options.key.time) {
 		cache_key += ':' + options.key.time;
 	}
@@ -316,52 +378,44 @@ CachedModelModule.prototype._buildCacheKey = function (options, params) {
 };
 
 /**
- * [_getFromCache description]
- * @param  {[type]}   key      [description]
- * @param  {Function} callback [description]
- * @param  {[type]}   error    [description]
- * @return {[type]}            [description]
- */
-CachedModelModule.prototype._getFromCache = function (key, callback, error) {
-	if (Array.isArray(key)) {
-		key = key.join(':');
-	}
-
-	if (!this.redis) {
-		throw new Error('You can not use a cached model without having a redis object assigned');
-	}
-
-	this.redis.get(key, function (err, data) {
-		if (err) {
-			if (typeof error === "function") {
-				error(err);
-			} else {
-				error._error(err);
-			}
-		}
-
-		callback(data);
-	});
-};
-
-/**
- * [_locateModels description]
+ * Turn a list of id's into models
+ * 
  * @param  {[type]} ids     [description]
  * @param  {[type]} promise [description]
  * @return {[type]}         [description]
  */
-CachedModelModule.prototype._locateModels = function (ids, promise) {
+CachedModelModule.prototype._locateModels = function (ids, model_request) {
 	var keys = [];
 	var _self = this;
-	var i = 0;
+	var single = false;
 
+	// allow an optional model request parameter
+	if (typeof model_request === "undefined") {
+		model_request = new ModelRequest(this);
+	}
+
+	if (typeof ids == "undefined" || ids == null) {
+		throw new Error('you must provide one or more ids to the method _locateModels');
+	}
+
+	// allow single values to be passed for the ids
+	if (!Array.isArray(ids)) {
+		ids = [ids];
+		single = true;
+	}
+
+	// if we don't have any ids, we should just return immediately
 	if (!ids.length) {
-		return promise._ready([]);
+		if (single) {
+			model_request._ready(null);
+		} else {
+			model_request._ready([]);
+		}
 	}
 
 	// Build an array of cache keys based on the ID's we need turned into models
 	ids.forEach(function (id) {
-		keys.push(_self._buildCacheKey({}, [id]));
+		keys.push(_self._buildCacheKey([id]));
 	});
 
 	// Try to get all of the cache keys with a single redis request
@@ -369,7 +423,7 @@ CachedModelModule.prototype._locateModels = function (ids, promise) {
 		var sql_ids = [];
 
 		if (err) {
-			return promise._error(err);
+			return model_request._error(err);
 		}
 
 		// Turn all the results into models, and track any object ID's that we couldn't find in cache
@@ -385,71 +439,86 @@ CachedModelModule.prototype._locateModels = function (ids, promise) {
 		// If there were any items not found in cache, find them in the database
 		if (sql_ids.length) {
 			var id_list = sql_ids.join(',');
-			_self.connection.query('select * from ' + _self._definition.table + ' where id in (' + id_list + ') ORDER BY FIELD (id,' + id_list + ')', function (err, rows, cols) {
+
+			_self.connection.query('select * from `' + _self._definition.table + '` where `id` in (' + id_list + ') ORDER BY FIELD (`id`,' + id_list + ')', function (err, rows, cols) {
 				if (err) {
-					return promise._error(err);
+					return model_request._error(err);
 				}
 
 				var i = 0;
 				var model = null;
-				var mset = [];
+				var hmset = [];
+				var multi = _self.redis.multi();
 
-				// Merge the items from the database back into the original array of models, and build an array to MSET them back into redis
+				// Merge the items from the database back into the original array of models, and build an array to HMSET them back into redis
 				for (i = 0; i < values.length; i++) {
 					if (values[i] === null) {
 						model =  new _self.Model(rows.shift());
-						
-						mset.push(_self._buildCacheKey({}, [model.id]));
-						// todo: use redis objects?
-						mset.push(model.toString());
-
 						values[i] = model;
+						multi.hmset(_self._buildCacheKey([model.id]), model.dataObject());
 					}
 				}
 
-				_self.redis.mset(mset, function (err, response) {
-					// this is required, but we ignore it. todo add logging, we don't need to wait for it
+				multi.exec(function (err, replies) {
+					// ignore for now. should have logging in the future
 				});
 
-				promise._ready(values);
+				if (single) {
+					model_request._ready(values[0]);
+				} else {
+					model_request._ready(values);
+				}
 			});
 		} else {
-			promise._ready(values);
+			if (single) {
+				model_request._ready(values[0]);
+			} else {
+				model_request._ready(values);
+			}
 		}
 	});
+
+	return model_request;
 };
 
 
-
-
-
-
+/**
+ * Extension of the model object
+ * 
+ * @param  {[type]} data [description]
+ * @return {[type]}      [description]
+ */
 var CachedModel = module.exports.CachedModel = function (data) {
 	Model.call(this, data);
 };
 
 util_module.inherits(CachedModel, Model);
 
+/**
+ * todo: pull this out of the model, and have save and delete work in another way, maybe reference the cached model by the db name or something.
+ * @type {[type]}
+ */
 CachedModel.prototype.redis = null;
 
-
 /**
- *
- * @todo turn this into one promise. Investigate using addModifier to handle redis.set
+ * Update the model in the database, and in the cache
+ * 
+ * @return ModelRequest
  */
 CachedModel.prototype.save = function () {
 	var _self = this;
 
 	return CachedModel.super_.prototype.save.call(this)
 		.addModifier(function (model) {
-			_self.redis.set('models:' + _self._definition.table + ':' + _self.id, _self.toString());
+			_self.redis.hmset('models:' + _self._definition.table + ':' + _self.id, _self.dataObject());
 			this._ready(model);
 		});
 };
 
 /**
- *
- * @todo turn this into one promise
+ * Delete a model from the cache
+ * 
+ * @return ModelRequest
  */
 CachedModel.prototype['delete'] = function () {
 	var _self = this;
@@ -457,7 +526,7 @@ CachedModel.prototype['delete'] = function () {
 
 	return CachedModel.super_.prototype['delete'].call(this)
 		.addModifier(function (model) {
-			_self.redis.del('models:' + _self._definition.table + ':' + old_id);
+			_self.redis.hdel('models:' + _self._definition.table + ':' + old_id);
 			this._ready(model);
 		});
 };
