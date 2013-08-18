@@ -29,8 +29,8 @@ connection.connect({
 .ready(function () {
 	var status = {
 		user_id : false,
-		user_name : false,
-		user_getAll : false,
+		user_email : false,
+		user_all : false,
 		preload_single : false,
 		preload_all : false
 	};
@@ -46,7 +46,7 @@ connection.connect({
 				return false;
 			}
 		}
-
+		
 		return true;
 	}
 
