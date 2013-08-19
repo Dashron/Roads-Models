@@ -193,6 +193,9 @@ var Model = module.exports.Model = function Model (data) {
 	this._updated_fields = {};
 
 	for (var key in data) {
+		if (!data.hasOwnProperty(key)) {
+			continue;
+		}
 		// make sure the datatype in the object is accurate
 		this['_' + key] = fix_data_type(this._definition.fields[key], data[key]);
 	}
@@ -202,6 +205,8 @@ var Model = module.exports.Model = function Model (data) {
 };
 // todo: flywheel this off of the table name
 Model.prototype._definition = null;
+
+// todo: add another underscore to this so it won't conflict with a field called updated_fields
 Model.prototype._updated_fields = null;
 Model.prototype._onSave = function (request) {
 	request._ready(this);
@@ -518,6 +523,10 @@ var ValidationHandler = function (model) {
 	this._data = {};
 
 	for (var key in model._updated_fields) {
+		if (!model._updated_fields.hasOwnProperty(key)) {
+			continue;
+		}
+
 		this._data[key] = model["_" + key];
 	}
 
@@ -552,6 +561,10 @@ ValidationHandler.prototype.ready = function (fn) {
 
 ValidationHandler.prototype.validateFields = function () {
 	for (var key in this._data) {
+		if (!this._data.hasOwnProperty(key)) {
+			continue;
+		}
+
 		this.validateField(key);
 	}
 	return this;

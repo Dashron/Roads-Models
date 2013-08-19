@@ -280,6 +280,10 @@ CachedModelModule.prototype.setTime = function (key, callback, error) {
  */
 function redis_string_normalize (object) {
 	for (var key in object) {
+		if (!object.hasOwnProperty(key)) {
+			continue;
+		}
+		
 		if (typeof object[key] === "object") {
 			object[key] = redis_string_normalize(object[key]);
 		} else if (typeof object[key] != "string") {
