@@ -413,13 +413,15 @@ CachedModelModule.prototype._locateModels = function (ids, model_request) {
 		}
 	}
 
+	var multi_get = _self.redis.multi();
+
 	// Build an array of cache keys based on the ID's we need turned into models
 	ids.forEach(function (id) {
-		keys.push(_self._buildCacheKey([id]));
+		console.log('hgetall');
+		multi_get.hgetall(_self._buildCacheKey([id]));
 	});
 
-	// Try to get all of the cache keys with a single redis request
-	_self.redis.mget(keys, function (err, values) {
+	multi_get.exec(function (err, values) {
 		var sql_ids = [];
 
 		if (err) {
@@ -448,18 +450,19 @@ CachedModelModule.prototype._locateModels = function (ids, model_request) {
 				var i = 0;
 				var model = null;
 				var hmset = [];
-				var multi = _self.redis.multi();
+				var multi_set = _self.redis.multi();
 
 				// Merge the items from the database back into the original array of models, and build an array to HMSET them back into redis
 				for (i = 0; i < values.length; i++) {
 					if (values[i] === null) {
 						model =  new _self.Model(rows.shift());
 						values[i] = model;
-						multi.hmset(_self._buildCacheKey([model.id]), model.dataObject());
+						console.log('redis hmset');
+						multi_set.hmset(_self._buildCacheKey([model.id]), model.dataObject());
 					}
 				}
 
-				multi.exec(function (err, replies) {
+				multi_set.exec(function (err, replies) {
 					// ignore for now. should have logging in the future
 				});
 
