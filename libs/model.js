@@ -169,6 +169,13 @@ ModelRequest.prototype.preload = function (field) {
 	return this;
 };
 
+function fix_data_type (definition, value) {
+	if (definition.type == 'id' || definition.type == 'int') {
+		value = Number(value);
+	}
+
+	return value;
+}
 
 /**
  *
@@ -186,7 +193,8 @@ var Model = module.exports.Model = function Model (data) {
 	this._updated_fields = {};
 
 	for (var key in data) {
-		this['_' + key] = data[key];
+		// make sure the datatype in the object is accurate
+		this['_' + key] = fix_data_type(this._definition.fields[key], data[key]);
 	}
 
 	// we have to set this a second time to wipe out any updated field markers from setting the initial data

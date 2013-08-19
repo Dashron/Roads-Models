@@ -273,6 +273,24 @@ CachedModelModule.prototype.setTime = function (key, callback, error) {
 };
 
 /**
+ * redis can't take integer etc types
+ * 
+ * @param  {[type]} object [description]
+ * @return {[type]}        [description]
+ */
+function redis_string_normalize (object) {
+	for (var key in object) {
+		if (typeof object[key] === "object") {
+			object[key] = redis_string_normalize(object[key]);
+		} else if (typeof object[key] != "string") {
+			object[key] = '' + object[key];
+		}
+	}
+
+	return object;
+}
+
+/**
  *
  * This is not called cached load because we do not need a cache key.
  */
@@ -310,12 +328,14 @@ CachedModelModule.prototype.load = function (value, field) {
 							// if we find the db value, update the mapping
 							_self.redis.set(_self._buildCacheKey({key : field}, [value]), model.id);
 							// and update the model
-							_self.redis.hmset('models:' + _self._definition.table + ':' + _self.id, model.dataObject());
+							// todo: use buildCacheKey
+							_self.redis.hmset('models:' + model._definition.table + ':' + model.id, redis_string_normalize(model.dataObject()));
 						} else {
 							// if we can't find the db value, make sure to delete everything just in case
 							// one of these might not be necessary. todo: a thorough investigation as to why they were here
 							_self.redis.del(_self._buildCacheKey({key : field}, [value]));
-							_self.redis.hmdel('models:' + _self._definition.table + ':' + _self.id, model.dataObject());
+							// todo use buildCacheKey
+							_self.redis.hmdel('models:' + model._definition.table + ':' + model.id, model.dataObject());
 						}
 
 						cache_request._ready(model);
