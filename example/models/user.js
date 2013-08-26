@@ -4,14 +4,14 @@
 * MIT Licensed
 */
 "use strict";
-var CachedModelModule = require('../../index').CachedModel;
+var ModelModule = require('../../index').Model;
 var connections = require('../../index').Connection;
 
 var crypto_module = require('crypto');
 
-var UserModule = module.exports = new CachedModelModule();
+var UserModule = module.exports = new ModelModule();
 UserModule.connection = connections.getConnection('mysql', 'default');
-UserModule.redis = connections.getConnection('redis', 'default');
+//UserModule.redis = connections.getConnection('redis', 'default');
 UserModule.setModel({
 	table : 'user',
 	fields : {
@@ -41,9 +41,17 @@ UserModule.setModel({
 		checkPassword : function checkPassword(password) {
 			return this._password === crypto_module.createHash('sha256').update(password).digest('hex');
 		}
+	},
+	sorts : {
+		'alphabetical' : {
+			field : 'name',
+			direction : 'asc'
+		}
 	}
 });
 
-UserModule.getAll = function () {
-	return this.cachedCollection('select id from user', 'all');
+UserModule.getAll = function (sort) {
+	return this.collection('select * from user', {
+		sort : sort
+	});
 };

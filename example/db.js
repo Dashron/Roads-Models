@@ -18,12 +18,6 @@ connection.connect({
 			"password" : 'roads',
 			"database" : "roadsmodelstest"
 		}
-	},
-	"redis" : {
-		"default" : {
-			"host" : "localhost",
-			"port" : 6379
-		}
 	}
 }).error(error_handler)
 .ready(function () {
@@ -32,7 +26,9 @@ connection.connect({
 		user_email : false,
 		user_all : false,
 		preload_single : false,
-		preload_all : false
+		preload_all : false,
+		custom_sort : false,
+		predefined_sort : false
 	};
 
 	var user_model = require('./models/user');
@@ -46,7 +42,7 @@ connection.connect({
 				return false;
 			}
 		}
-		
+
 		return true;
 	}
 
@@ -70,7 +66,7 @@ connection.connect({
 			if (is_complete('user_email')) {
 				return end(connection);
 			}
-		}).error(error_handler);
+		}).error(error_handler);//*/
 
 	// load a single model and preload it with the appropriate user object
 	preload_model.load(1)
@@ -83,7 +79,7 @@ connection.connect({
 				return end(connection);
 			}
 		})
-		.error(error_handler)
+		.error(error_handler)//*/
 
 	// load a collection
 	user_model.getAll()
@@ -97,12 +93,31 @@ connection.connect({
 		})
 		.error(error_handler);//*/
 
-	/*user_model.getAll({field : 'name', direction : 'desc'})
+	// load a sorted collection
+	user_model.getAll('alphabetical')
+		.ready(function (users) {
+			console.log('sorted users');
+			console.log(users);
+
+
+			if (is_complete('predefined_sort')) {
+				return end(connection);
+			}
+		})
+		.error(error_handler);//*/
+
+	// load a custom sorted collection
+	user_model.getAll({field : 'name', order : 'desc'})
 		.ready(function (users) {
 			console.log('reverse sorted users');
 			console.log(users);
+
+
+			if (is_complete('custom_sort')) {
+				return end(connection);
+			}
 		})
-		.error(error_handler);//*/
+		.error(error_handler);//*/	
 
 	// load a collection and preload the models with the appropriate user objects
 	preload_model.getAll()

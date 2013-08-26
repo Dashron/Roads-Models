@@ -4,14 +4,13 @@
 * MIT Licensed
 */
 "use strict";
-var CachedModelModule = require('../../index').CachedModel;
+var ModelModule = require('../../index').Model;
 var connections = require('../../index').Connection;
 
 var UserModel = require('./user');
 
-var PreloadModule = module.exports = new CachedModelModule();
+var PreloadModule = module.exports = new ModelModule();
 PreloadModule.connection = connections.getConnection('mysql', 'default');
-PreloadModule.redis = connections.getConnection('redis', 'default');
 PreloadModule.setModel({
 	table : 'preload',
 	fields : {
@@ -26,6 +25,8 @@ PreloadModule.setModel({
 	}
 });
 
-PreloadModule.getAll = function () {
-	return this.cachedCollection('select id from preload', 'all');
+PreloadModule.getAll = function (sort) {
+	return this.collection('select * from preload', {
+		sort : sort
+	});
 };
