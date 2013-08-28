@@ -58,6 +58,11 @@ Model.prototype._onDelete = function (request) {
 
 Model.prototype._connection = null;
 
+/**
+ * [ description]
+ * @return {[type]} [description]
+ * @todo don't allow save to be called on a deleted object
+ */
 Model.prototype.save = function () {
 	var _self = this;
 	var request = new ModelRequest(this);
@@ -66,26 +71,32 @@ Model.prototype.save = function () {
 	var values = [];
 	var i = 0;
 
-	//todo don't allow save to be called on a deleted object
+	// check if we should actually perform any updates. keys is list of updated fields
 	if (keys.length > 0) {
+		// Validation is handled through the ValidationHandler. I'm no longer sure why, probably worth a refactor
 		var validator = new ValidationHandler(this);
 		validator.ready(function (invalid_fields) {
 			if (invalid_fields) {
 				if (request._validationError) {
+					// if the values are invalid and the user assigned a validation handler, use that
 					return request._validationError(invalid_fields);
 				} else {
+					// otherwise send the invalid fields through the error
 					return request._error(invalid_fields);
 				}
 			}
 
 			if (typeof _self.id === "undefined" || _self.id === null) {
+				// If there's no id, it's going to be saved as a new model
 				var placeholders = [];
 
+				// build the parameter values for the sql query
 				for (i = 0; i < keys.length; i++) {
 					values.push(_self['_' + keys[i]]);
 					placeholders.push('?');
 				}
 
+				// perfom the insert
 				_self._connection.query(
 					'insert into `' + _self._definition.table + '` (`' + keys.join('`, `') + '`) VALUES (' + placeholders.join(', ') + ')', 
 					values,
@@ -93,22 +104,27 @@ Model.prototype.save = function () {
 						request.result = result;
 
 						if (error) {
-							request._error(error);
-							return;
+							return request._error(error);
 						}
 
+						// update the model object to reflect the insert
 						_self.id = result.insertId;
 						_self._updated_fields = [];
 						_self._onSave(request);
 					}
 				);
 			} else {
+				// we have an id, so we should update
+				
+				// build a list of my values and update them all
 				for (i = 0; i < keys.length; i++) {
 					values.push(_self['_' + keys[i]]);
 				}
 				
+				// add the id to the end of the values (for the where statement)
 				values.push(_self.id);
 
+				// perform the update
 				_self._connection.query(
 					'update `' + _self._definition.table + '` set `' + keys.join('` = ?, `') + '` = ? where `id` = ?', 
 					values, 
@@ -119,6 +135,7 @@ Model.prototype.save = function () {
 							return request._error(error);
 						}
 
+						// update the model to reflect the update
 						_self._updated_fields = [];
 						_self._onSave(request);
 					}
@@ -127,6 +144,7 @@ Model.prototype.save = function () {
 		}).validateFields();
 
 	} else {
+		// no values have been updated so return immediately
 		process.nextTick(function () {
 			_self._onSave(request);
 		});
@@ -138,22 +156,24 @@ Model.prototype.save = function () {
 /**
  *
  *
- *
+ * @todo  should this be marked as delete somehow? should parameters be cleared? or should ->delete(); ->save(); back to back work?
  */
 Model.prototype['delete'] = function () {
 	var delete_request = new ModelRequest(this);
 	var _self = this;
 
+	// go right to the db for the delete, since it's an easy query no preparation is necessary
 	this._connection.query('delete from `' + this._definition.table + '` where `id` = ?', 
 		[this.id], 
 		function (error, result) {
+			// include the result in the response for the delete event
 			delete_request.result = result;
 
 			if (error) {
-				delete_request._error(error);
-				return;
+				return delete_request._error(error);
 			}
 
+			// clear out the model so that it reflects the delete
 			var old_id = _self.id;
 			_self.id = null;
 			_self._onDelete(delete_request, old_id);
@@ -236,11 +256,13 @@ ModelModule.prototype.setModel = function (definition, model_class) {
 		model_class = Model;
 	}
 
+	// Create the model class
 	var NewModel = function(data) {
 		model_class.call(this, data);
 	};
 	util_module.inherits(NewModel, model_class);
 
+	// Fill it with the model information
 	NewModel.prototype._definition = definition;
 	applyModelMethods(NewModel, definition);
 	applyModelFields(NewModel, definition);
@@ -324,9 +346,11 @@ ModelModule.prototype.collection = function (sql, params, options) {
 		params = [];
 	}
 
+	// sql sort and pagination is easy, it gets applied right on the sql statement
 	sql = this._apply_sort(sql, options);
 	sql = this._apply_pagination(sql, options);
 
+	// run the query
 	this.connection.query(sql, params, function (err, rows, columns) {
 		if (err) {
 			return request._error(err);
@@ -334,6 +358,7 @@ ModelModule.prototype.collection = function (sql, params, options) {
 
 		var models = new Array(rows.length);
 
+		// build the models
 		for (var i = 0; i < rows.length; i++) {
 			models[i] = new _self.Model(rows[i]);
 		}
@@ -345,7 +370,14 @@ ModelModule.prototype.collection = function (sql, params, options) {
 };
 
 /**
- * [ description]
+ * the options should be
+ *
+ * options.sort.field
+ * options.sort.direction
+ *
+ * sort can be a string. if used as such it looks for that key in the definition's sorts object. if found it uses that sort, otherwise it errors
+ * direction is optional, default desc
+ * 
  * @param  {[type]} sql     [description]
  * @param  {[type]} options [description]
  * @return {[type]}         [description]
@@ -375,7 +407,14 @@ ModelModule.prototype._apply_sort = function (sql, options) {
 }
 
 /**
- * [ description]
+ * the options should be
+ *
+ * options.pagination.page
+ * options.pagination.per_page
+ *
+ * page is optional, default 1
+ * per_page is optional, default 25
+ * 
  * @param  {[type]} sql     [description]
  * @param  {[type]} options [description]
  * @return {[type]}         [description]
