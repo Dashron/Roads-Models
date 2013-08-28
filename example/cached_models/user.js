@@ -4,13 +4,14 @@
 * MIT Licensed
 */
 "use strict";
-var ModelModule = require('../../index').Model;
+var CachedModelModule = require('../../index').CachedModel;
 var connections = require('../../index').Connection;
 
 var crypto_module = require('crypto');
 
-var UserModule = module.exports = new ModelModule();
+var UserModule = module.exports = new CachedModelModule();
 UserModule.connection = connections.getConnection('mysql', 'default');
+UserModule.redis = connections.getConnection('redis', 'default');
 UserModule.setModel({
 	table : 'user',
 	fields : {
@@ -42,15 +43,16 @@ UserModule.setModel({
 		}
 	},
 	sorts : {
-		'alphabetical' : {
+		'name desc' : {
 			field : 'name',
-			direction : 'asc'
+			direction : 'desc'
 		}
 	}
 });
 
 UserModule.getAll = function (sort) {
-	return this.collection('select * from user', {
+	return this.cachedCollection('select id, name from user', {
+		key : 'all',
 		sort : sort
 	});
 };
