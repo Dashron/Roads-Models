@@ -100,7 +100,7 @@ connection.connect({
 		.error(error_handler);//*/
 
 	// load a sorted collection
-	/*user_model.getAll('alphabetical')
+	user_model.getAll('alphabetical')
 		.ready(function (users) {
 			console.log('sorted users');
 			console.log(users);
@@ -113,7 +113,7 @@ connection.connect({
 		.error(error_handler);//*/
 
 	// load a custom sorted collection
-	/*user_model.getAll({field : 'name', order : 'desc'})
+	user_model.getAll({field : 'name', direction : 'desc'})
 		.ready(function (users) {
 			console.log('reverse sorted users');
 			console.log(users);

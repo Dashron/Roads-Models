@@ -43,9 +43,9 @@ UserModule.setModel({
 		}
 	},
 	sorts : {
-		'name desc' : {
+		'alphabetical' : {
 			field : 'name',
-			direction : 'desc'
+			direction : 'asc'
 		}
 	}
 });

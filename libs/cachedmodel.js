@@ -45,11 +45,11 @@ CachedModelModule.prototype.buildCacheKey = function (options, params, callback)
 				return callback(err);
 			} else {
 				options.key.time = val;
-				callback(null, _self._buildCacheKey(options, params), options.ttl);
+				callback(null, _self._buildCacheKey(options, params, options.ignore_sort), options.ttl);
 			}
 		});
 	} else {
-		callback(null, _self._buildCacheKey(options, params), options.ttl);
+		callback(null, _self._buildCacheKey(options, params, options.ignore_sort), options.ttl);
 	}
 };
 
@@ -76,7 +76,7 @@ CachedModelModule.prototype.buildCacheKey = function (options, params, callback)
  * @param  {[type]} options [description]
  * @return {[type]}         [description]
  */
-CachedModelModule.prototype._buildCacheKey = function (options, params) {
+CachedModelModule.prototype._buildCacheKey = function (options, params, ignore_sort) {
 	// allow the options parameter to be ignored
 	if (typeof params === "undefined") {
 		params = options;
@@ -89,6 +89,10 @@ CachedModelModule.prototype._buildCacheKey = function (options, params) {
 		};
 	}
 
+	if (typeof ignore_sort === "undefined" || ignore_sort == null) {
+		ignore_sort = false;
+	}
+
 	var cache_key = this._cache_prefix;
 
 	if (options.key && options.key.value) {
@@ -99,12 +103,12 @@ CachedModelModule.prototype._buildCacheKey = function (options, params) {
 		cache_key += ':' + params.join(':');
 	}
 
-	if (options.sort) {
-		cache_key += ':' + options.sort.field + ':' + options.sort.direction;
+	if (options.sort && !ignore_sort) {
+		cache_key += ':sort:' + options.sort.field.toLowerCase() + ':' + options.sort.direction.toLowerCase();
 	}
 
 	if (options.key && options.key.time) {
-		cache_key += ':' + options.key.time;
+		cache_key += ':time:' + options.key.time;
 	}
 
 	return cache_key;
@@ -229,27 +233,63 @@ CachedModelModule.prototype._sortedCachedCollection = function (sql, params, opt
 		options.sort.direction = 'DESC';
 	}
 
-	/*var cache_pattern = this._buildCacheKey(['*']);
+	options.ignore_sort = false
 
-	this.redis.smembers(this._buildCacheKey(params, options), function (err, response) {
+	var cache_request = new ModelRequest(this);
+	var sorted_key = _self._buildCacheKey(options, params);
+
+	this.redis.lrange(sorted_key, 0, -1, function (err, response) {
 		if (err) {
-			return ;//
+			return cache_request._error(err);
 		}
 
-		if (!response) {
-			return this.redis.sort(key, options.sort.direction, 'by', 
-					cache_pattern + '->' + options.sort.field, 'get', 
-					cache_pattern + '->id', 'store', this._buildCacheKey(params, options), function (response) {
-						return ;
-					}); 
+		if (response && response.length) {
+			// if we find a list of ids, load them and ship em out
+			return _self.load(response)
+				.bindRequest(cache_request);
 		} else {
-			return ;
+			// if we didn't find a list of ids, sort in redis and then retry the previous query
+			var cache_pattern = _self._buildCacheKey(['*']);
+
+			return _self.redis.sort(_self._buildCacheKey(options, params, true), options.sort.direction, 'ALPHA',
+				'by', cache_pattern + '->' + options.sort.field, 
+				'get', cache_pattern + '->id',  
+				'store', sorted_key
+				, function (err, response) {
+					if (err) {
+						return cache_request._error(err);
+					}
+
+					// if the sort didn't set anything, try to find the collection
+					if (response === 0) {
+						_self._unsortedCachedCollection(sql, params, options)
+							.addModifier(function (response) {
+								// if the collection found something, it should now be cached so we can retry the sorted collection
+								if (response && response.length) {
+									_self._sortedCachedCollection(sql, params, options)
+										.bindRequest(this);
+								} else {
+									// the collection did not find something so return an empty array
+									cache_request._ready([]);
+								}
+							})
+							.bindRequest(cache_request);
+					} else {
+						// the sort set a list, so lets retry the sorted collection
+						_self._sortedCachedCollection(sql, params, options)
+							.bindRequest(cache_request);
+					}
+				}); 
 		}
-	})*/
+	});
+
+	return cache_request;
 };
 
 /**
  * [ description]
+ *
+ * @todo  are we sure that we should use smembers here? do we want a unique list or not. maybe we can use the definition to identify if the field should be unique, then handle list or members appropriately
  * @param  {[type]} sql     [description]
  * @param  {[type]} params  [description]
  * @param  {[type]} options [description]
@@ -262,6 +302,8 @@ CachedModelModule.prototype._unsortedCachedCollection = function (sql, params, o
 		options = params;
 		params = [];
 	}
+
+	options.ignore_sort = true;
 
 	var cache_request = new ModelRequest(this);
 
