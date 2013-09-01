@@ -36,8 +36,11 @@ var Model = module.exports.Model = function Model (data) {
 		if (!data.hasOwnProperty(key)) {
 			continue;
 		}
-		// make sure the datatype in the object is accurate
-		this['_' + key] = fix_data_type(this._definition.fields[key], data[key]);
+
+		if (this._definition.fields[key]) {
+			// make sure the datatype in the object is accurate
+			this['_' + key] = fix_data_type(this._definition.fields[key], data[key]);
+		}
 	}
 
 	// we have to set this a second time to wipe out any updated field markers from setting the initial data

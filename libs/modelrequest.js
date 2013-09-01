@@ -150,12 +150,17 @@ ModelRequest.prototype.preload = function (field) {
 				} else {
 					// build a list of id => model to ensure a record exists
 					for (i = 0; i < models.length; i++) {
-						model_associations[models[i].id] = models[i];
+						// there's a chance that the model id is referenced, but doesn't actually exist (data integrity issues)
+						if (models[i]) {
+							model_associations[models[i].id] = models[i];
+						}
 					}
 
 					for (i = 0; i < data.length; i++) {
 						if (typeof model_associations[data[i][field]] !== "undefined" && typeof model_associations[data[i][field]] !== null) {
 							data[i][assign_to] = model_associations[data[i][field]];
+						} else {
+							data[i][assign_to] = null;
 						}
 					}
 				}

@@ -506,9 +506,15 @@ CachedModelModule.prototype._fillMissingCacheValues = function (cached_models, r
 	for (i = 0; i < cached_models.length; i++) {
 		if (cached_models[i] === null) {
 			model =  db_values[ids[i]];
-			cached_models[i] = model;
-			// set this item, which was not originally found in redis, back into redis
-			multi_set.hmset(this._buildCacheKey([model.id]), model.dataObject());
+
+			if (model) {
+				cached_models[i] = model;
+				// set this item, which was not originally found in redis, back into redis
+				multi_set.hmset(this._buildCacheKey([model.id]), model.dataObject());
+			} else {
+				// if the model is not found, use null. this is likely data integrity issues
+				cached_models[i] = null;
+			}
 		}
 	}
 
