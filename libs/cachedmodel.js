@@ -124,12 +124,62 @@ CachedModelModule.prototype._buildCacheKey = function (options, params, ignore_s
 CachedModelModule.prototype.addToCachedCollection = function (key_options, params, val, request) {
 	var _self = this;
 
+	if (typeof key_options === "string") {
+		key_options = {
+			key : key_options
+		};
+	}
+
 	this.buildCacheKey(key_options, params, function (err, key, ttl) {
 		if (err) {
 			return request._error(err);
 		} else {
-			// fire and forget
-			_self.redis.sadd(key, val);
+			// fire, handle sorts, then forget
+			_self.redis.sadd(key, val, function (err, response) {
+				if (err) {
+					return request._error(err);
+				}
+
+				var sorts = Object.keys(_self._definition.sorts);
+
+				for (var i = 0; i < sorts.length; i++) {
+					key_options.sort = _self._definition.sorts[sorts[i]];
+					_self._rebuildSort(key_options, params, val, request);
+				}
+			});
+		}
+	});
+};
+
+/**
+ * [ description]
+ * @param  {[type]} options [description]
+ * @param  {[type]} params  [description]
+ * @param  {[type]} val     [description]
+ * @param  {[type]} request [description]
+ * @return {[type]}         [description]
+ */
+CachedModelModule.prototype._rebuildSort = function (options, params, val, request) {
+	var _self = this;
+	var sorted_key = _self._buildCacheKey(options, params);
+	var cache_pattern = _self._buildCacheKey(['*']);
+
+	// make sure the sort already exists before we update the sort. No need to update something that's never used
+	_self.redis.exists(sorted_key, function (err, response) {
+		if (err) {
+			return request._error(err);
+		}
+
+		if (response == 1) {
+			return _self.redis.sort(_self._buildCacheKey(options, params, true), options.sort.direction, 'ALPHA',
+				'by', cache_pattern + '->' + options.sort.field, 
+				'get', cache_pattern + '->id',  
+				'store', sorted_key, 
+				function (err, response) {
+					if (err) {
+						return request._error(err);
+					}
+				});
 		}
 	});
 };
@@ -145,12 +195,29 @@ CachedModelModule.prototype.addToCachedCollection = function (key_options, param
 CachedModelModule.prototype.removeFromCachedCollection = function (key_options, params, val, request) {
 	var _self = this;
 
+	if (typeof key_options === "string") {
+		key_options = {
+			key : key_options
+		};
+	}
+	
 	this.buildCacheKey(key_options, params, function (err, key, ttl) {
 		if (err) {
 			return request._error(err);
 		} else {
 			// fire and forget
-			_self.redis.srem(key, val);
+			_self.redis.srem(key, val, function (err, response) {
+				if (err) {
+					return request._error(err);
+				}
+
+				var sorts = Object.keys(_self._definition.sorts);
+
+				for (var i = 0; i < sorts.length; i++) {
+					key_options.sort = _self._definition.sorts[sorts[i]];
+					_self._rebuildSort(key_options, params, val, request);
+				}
+			});
 		}
 	});
 };
