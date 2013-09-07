@@ -344,6 +344,10 @@ CachedModelModule.prototype._unsortedCachedCollection = function (sql, params, o
 							// Cache all of the ID's so we don't have to do a database lookup in the future
 							if (ttl) {
 								_self.redis.sadd(key, ids, function (err, rows) {
+									if (err) {
+										// todo: do more here
+										console.log(err);
+									}
 									_self.redis.expire(key, ttl);
 								});
 							} else {
@@ -519,6 +523,10 @@ CachedModelModule.prototype._fillMissingCacheValues = function (cached_models, r
 	}
 
 	multi_set.exec(function (err, replies) {
+		if (err) {
+			// todo: do more here
+			console.log(err);
+		}
 		// ignore for now. should have logging in the future
 	});
 
@@ -676,6 +684,10 @@ CachedModel.prototype.save = function () {
 	return CachedModel.super_.prototype.save.call(this)
 		.addModifier(function (model) {
 			_self.redis.hmset('models:' + _self._definition.table + ':' + _self.id, _self.dataObject(), function (err) {
+				if (err) {
+					// todo: do more here
+					console.log(err);
+				}
 				// unused but required for lib?
 			});
 			this._ready(model);
@@ -693,7 +705,12 @@ CachedModel.prototype['delete'] = function () {
 
 	return CachedModel.super_.prototype['delete'].call(this)
 		.addModifier(function (model) {
-			_self.redis.hdel('models:' + _self._definition.table + ':' + old_id);
+			_self.redis.del('models:' + _self._definition.table + ':' + old_id, function (err, response) {
+				if (err) {
+					// todo: do more here
+					console.log(err);
+				}
+			});
 			this._ready(model);
 		});
 };
