@@ -675,7 +675,9 @@ CachedModel.prototype.save = function () {
 
 	return CachedModel.super_.prototype.save.call(this)
 		.addModifier(function (model) {
-			_self.redis.hmset('models:' + _self._definition.table + ':' + _self.id, _self.dataObject());
+			_self.redis.hmset('models:' + _self._definition.table + ':' + _self.id, _self.dataObject(), function (err) {
+				// unused but required for lib?
+			});
 			this._ready(model);
 		});
 };

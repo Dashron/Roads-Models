@@ -6,7 +6,7 @@
 "use strict";
 
 var util_module = require('util');
-var ValidationHandler = require('./validationhandler');
+var ValidationHandler = require('./validationhandler').ValidationHandler;
 var ModelRequest = require('./modelrequest').ModelRequest;
 
 function fix_data_type (definition, value) {
