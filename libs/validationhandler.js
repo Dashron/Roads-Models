@@ -55,7 +55,7 @@ ValidationHandler.prototype.validateFields = function () {
 			_self.validateField(key);
 		}
 	});
-	
+
 	return this;
 };
 
@@ -71,7 +71,7 @@ exports.validateField = function (field, handler) {
 	var length = null;
 	var valid = true;
 	var message = '';
-
+	
 	switch (type) {
 		case "email":
 			type = "string";
@@ -87,48 +87,59 @@ exports.validateField = function (field, handler) {
 			break;
 	}
 
-	if (typeof definition.length != "undefined") {
-		length = definition.length;
-	}
-
-	switch (type) {
-		case "string":
-			data = '' + data;
-
-			if (length && data.length > length) {
-				message = "invalid length";
-				valid = false;
-			}
-			break;
-
-		case "number":
-			// thanks stack overflow!
-			if (isNaN(parseFloat(data)) || !isFinite(data)) {
-				message = "invalid number";
-				valid = false;
-			} else if (length && data.toString().length > length) {
-				message = "invalid length";
-				valid = false;
-			}
-			break;
-
-		case "date":
-			if (!util_module.isDate(data)) {
-				message = "invalid date";
-				valid = false;
-			}
-			break;
-
-		default:
-			throw new Error('invalid validation type');
-	}
-
-	if (definition.nullable && !valid) {
-		message = null;
-		valid = true;
-		data = null;
-	}
 	
+	if (definition.nullable) {
+		// if we allow nulls
+		if (typeof data === "undefined") {
+			// override undefined with  null
+			data = null;
+			// NOTE: ONCE YOU SAVE ALL UNDEFINEDS WILL BECOME NULL. THIS WILL CHANGE THE VALUE IN THE MODEL
+			handler._data[field] = null;
+		}
+	} else {
+		// if we don't allow null values
+		if (data === null || typeof data === "undefined") {
+			// and the data is null or undefined, error
+			message = "can not be null";
+			valid = false;
+			data = null;
+		}
+	}
+
+	if (valid) {
+		switch (type) {
+			case "string":
+				data = '' + data;
+
+				if (length && data.length > length) {
+					message = "invalid length";
+					valid = false;
+				}
+				break;
+
+			case "number":
+				// thanks stack overflow!
+				if (isNaN(parseFloat(data)) || !isFinite(data)) {
+					message = "invalid number";
+					valid = false;
+				} else if (length && data.toString().length > length) {
+					message = "invalid length";
+					valid = false;
+				}
+				break;
+
+			case "date":
+				if (!util_module.isDate(data)) {
+					message = "invalid date";
+					valid = false;
+				}
+				break;
+
+			default:
+				throw new Error('invalid validation type');
+		}
+	}
+
 	if (valid) {
 		if (definition.custom) {
 			definition.custom(data, handler._ready.bind(handler));
