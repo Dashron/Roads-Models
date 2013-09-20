@@ -44,13 +44,18 @@ ValidationHandler.prototype.ready = function (fn) {
 };
 
 ValidationHandler.prototype.validateFields = function () {
-	for (var key in this._data) {
-		if (!this._data.hasOwnProperty(key)) {
-			continue;
-		}
+	var _self = this;
+	// handle this later so that all error handlers happen 
+	process.nextTick(function () {
+		for (var key in _self._data) {
+			if (!_self._data.hasOwnProperty(key)) {
+				continue;
+			}
 
-		this.validateField(key);
-	}
+			_self.validateField(key);
+		}
+	});
+	
 	return this;
 };
 
