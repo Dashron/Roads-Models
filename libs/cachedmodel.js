@@ -213,11 +213,13 @@ CachedModelModule.prototype.removeFromCachedCollection = function (key_options, 
 					return request._error(err);
 				}
 
-				var sorts = Object.keys(_self._definition.sorts);
+				if (_self._definition.sorts) {
+					var sorts = Object.keys(_self._definition.sorts);
 
-				for (var i = 0; i < sorts.length; i++) {
-					key_options.sort = _self._definition.sorts[sorts[i]];
-					_self._rebuildSort(key_options, params, val, request);
+					for (var i = 0; i < sorts.length; i++) {
+						key_options.sort = _self._definition.sorts[sorts[i]];
+						_self._rebuildSort(key_options, params, val, request);
+					}
 				}
 			});
 		}
