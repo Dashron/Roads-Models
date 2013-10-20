@@ -10,7 +10,7 @@ var ValidationHandler = require('./validationhandler').ValidationHandler;
 var ModelRequest = require('./modelrequest').ModelRequest;
 
 function fix_data_type (definition, value) {
-	if (definition.type == 'id' || definition.type == 'int') {
+	if (definition.type == 'id' || definition.type == 'number') {
 		value = Number(value);
 	}
 
