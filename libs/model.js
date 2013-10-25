@@ -329,7 +329,11 @@ ModelModule.prototype._loadModel = function (value, field) {
 		per_page : 1
 	})
 	.addModifier(function (data) {
-		this._ready(data[0]);
+		if (data.length) {
+			this._ready(data[0]);
+		} else {
+			this._ready(null);
+		}
 	});
 };
 

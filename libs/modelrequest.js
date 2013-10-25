@@ -123,19 +123,26 @@ ModelRequest.prototype.preload = function (field) {
 	var original_promise = this;
 
 	this.addModifier(function (data) {
-		var ids = new Array(data.length);
+		var ids = null;
 		var i = 0;
 		var model_associations = {};
 		var model_promise = null;
 		
-		// locate objects works with a single id, so this allows preload to work off of a single model (from load)
-		if (!Array.isArray(data)) {
+		
+		if (data === null) {
+			// If no item is found, return nothing (this code path is reached if you request a single item and it doesn't exist)
+			return process.nextTick(function () {
+				original_promise._ready(null);
+			});
+		} else if (!Array.isArray(data)) {
+			// locate objects works with a single id, so this allows preload to work off of a single model (from load)
 			if (typeof data === "object") {
 				ids = data[field];
 			} else {
 				return this._error(new Error('Invalid data provided to the preload addModifier callback'));
 			}
 		} else {
+			ids = new Array(data.length);
 			// find all of the ids from the data array
 			for (i = 0; i < data.length; i++) {
 				ids[i] = data[i][field];

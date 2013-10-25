@@ -34,7 +34,9 @@ connection.connect({
 		preload_single : false,
 		preload_all : false,
 		custom_sort : false,
-		predefined_sort : false
+		predefined_sort : false,
+		one_miss : false,
+		one_miss_preload : false
 	};
 
 	var user_model = require('./cached_models/user');
@@ -63,6 +65,18 @@ connection.connect({
 			}
 		}).error(error_handler);//*/
 
+	// load a single model from it's id
+	user_model.load(999)
+		.ready(function (user) {
+			console.log('individual missed load, id:');
+			console.log(user);
+
+			if (is_complete('one_miss')) {
+				return end(connection);
+			}
+		}).error(error_handler);//*/
+
+
 	// load a single model with a non-id field
 	user_model.load('aaron@dashron.com', 'email')
 		.ready(function (user) {
@@ -82,6 +96,19 @@ connection.connect({
 			console.log(preload);
 
 			if (is_complete('preload_single')) {
+				return end(connection);
+			}
+		})
+		.error(error_handler)//*/
+
+	// load a single model and preload it with the appropriate user object
+	preload_model.load(999)
+		.preload('user_id')
+		.ready(function (preload) {
+			console.log('single missed preload:');
+			console.log(preload);
+
+			if (is_complete('one_miss_preload')) {
 				return end(connection);
 			}
 		})
