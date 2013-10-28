@@ -20,6 +20,10 @@ util_module.inherits(CachedModelModule, ModelModule);
 
 CachedModelModule.prototype.redis = null;
 
+CachedModelModule.prototype._redis = function () {
+	return this.redis.getConnection();
+}
+
 /**
  * [buildCacheKey description]
  * @param  {[type]}   options  can be string, will become { key : { value : options } }
@@ -135,7 +139,7 @@ CachedModelModule.prototype.addToCachedCollection = function (key_options, param
 			return request._error(err);
 		} else {
 			// fire, handle sorts, then forget
-			_self.redis.sadd(key, val, function (err, response) {
+			_self._redis().sadd(key, val, function (err, response) {
 				if (err) {
 					return request._error(err);
 				}
@@ -167,13 +171,13 @@ CachedModelModule.prototype._rebuildSort = function (options, params, val, reque
 	var cache_pattern = _self._buildCacheKey(['*']);
 
 	// make sure the sort already exists before we update the sort. No need to update something that's never used
-	_self.redis.exists(sorted_key, function (err, response) {
+	_self._redis().exists(sorted_key, function (err, response) {
 		if (err) {
 			return request._error(err);
 		}
 
 		if (response == 1) {
-			return _self.redis.sort(_self._buildCacheKey(options, params, true), options.sort.direction, 'ALPHA',
+			return _self._redis().sort(_self._buildCacheKey(options, params, true), options.sort.direction, 'ALPHA',
 				'by', cache_pattern + '->' + options.sort.field, 
 				'get', cache_pattern + '->id',  
 				'store', sorted_key, 
@@ -208,7 +212,7 @@ CachedModelModule.prototype.removeFromCachedCollection = function (key_options, 
 			return request._error(err);
 		} else {
 			// fire and forget
-			_self.redis.srem(key, val, function (err, response) {
+			_self._redis().srem(key, val, function (err, response) {
 				if (err) {
 					return request._error(err);
 				}
@@ -309,7 +313,7 @@ CachedModelModule.prototype._sortedCachedCollection = function (sql, params, opt
 	var cache_request = new ModelRequest(this);
 	var sorted_key = _self._buildCacheKey(options, params);
 
-	this.redis.lrange(sorted_key, 0, -1, function (err, response) {
+	this._redis().lrange(sorted_key, 0, -1, function (err, response) {
 		if (err) {
 			return cache_request._error(err);
 		}
@@ -322,7 +326,7 @@ CachedModelModule.prototype._sortedCachedCollection = function (sql, params, opt
 			// if we didn't find a list of ids, sort in redis and then retry the previous query
 			var cache_pattern = _self._buildCacheKey(['*']);
 
-			return _self.redis.sort(_self._buildCacheKey(options, params, true), options.sort.direction, 'ALPHA',
+			return _self._redis().sort(_self._buildCacheKey(options, params, true), options.sort.direction, 'ALPHA',
 				'by', cache_pattern + '->' + options.sort.field, 
 				'get', cache_pattern + '->id',  
 				'store', sorted_key
@@ -385,7 +389,7 @@ CachedModelModule.prototype._unsortedCachedCollection = function (sql, params, o
 		}
 
 		// using the built key, find the collection
-		_self.redis.smembers(key, function (err, ids) {
+		_self._redis().smembers(key, function (err, ids) {
 			// todo: if (options.key.time) expire key
 			if (err) {
 				return cache_request._error(err);
@@ -414,15 +418,15 @@ CachedModelModule.prototype._unsortedCachedCollection = function (sql, params, o
 						} else {
 							// Cache all of the ID's so we don't have to do a database lookup in the future
 							if (ttl) {
-								_self.redis.sadd(key, ids, function (err, rows) {
+								_self._redis().sadd(key, ids, function (err, rows) {
 									if (err) {
 										// todo: do more here
 										console.log(err);
 									}
-									_self.redis.expire(key, ttl);
+									_self._redis().expire(key, ttl);
 								});
 							} else {
-								_self.redis.sadd(key, ids);
+								_self._redis().sadd(key, ids);
 							}
 
 							// Turn the ID's into models
@@ -447,7 +451,7 @@ CachedModelModule.prototype._unsortedCachedCollection = function (sql, params, o
 CachedModelModule.prototype.getTime = function (key, callback) {
 	var _self = this;
 
-	this.redis.get('cache:times:' + key, function redis_get_times(err, val) {
+	this._redis().get('cache:times:' + key, function redis_get_times(err, val) {
 		if (err) {
 			if (typeof callback === "function") {
 				return callback(err);
@@ -474,7 +478,7 @@ CachedModelModule.prototype.setTime = function (key, callback) {
 
 	// if its not found, set it
 	var now = Date.now() / 1000;
-	this.redis.set('cache:times:' + key, now, function redis_set_time(err) {
+	this._redis().set('cache:times:' + key, now, function redis_set_time(err) {
 		if (err) {
 			if (typeof callback === "function") {
 				return callback(err);
@@ -511,7 +515,7 @@ CachedModelModule.prototype._loadArray = function (ids) {
 
 	// allow an optional model request parameter
 	var model_request = new ModelRequest(this);
-	var multi_get = _self.redis.multi();
+	var multi_get = _self._redis().multi();
 
 	// build the multi redis call, with a chain of hgetall commands
 	ids.forEach(function (id) {
@@ -540,7 +544,7 @@ CachedModelModule.prototype._loadArray = function (ids) {
 			var id_list = sql_ids.join(',');
 
 			// run the query, and sort it by the exact order we have our id's in
-			_self.connection.query('select * from `' + _self._definition.table + 
+			_self._query('select * from `' + _self._definition.table + 
 					'` where `id` in (' + id_list + ') ORDER BY FIELD (`id`,' + id_list + ')', function (err, rows) {
 				if (err) {
 					return model_request._error(err);
@@ -568,7 +572,7 @@ CachedModelModule.prototype._fillMissingCacheValues = function (cached_models, r
 	var db_values = {};
 	var i = 0;
 	var model = null;
-	var multi_set = this.redis.multi();
+	var multi_set = this._redis().multi();
 
 	// build a list of id => model. This is necessary because the db won't return duplicate records if an id is used more than once
 	// We have to map the returned rows to their id, then match up the empty cached list
@@ -632,10 +636,10 @@ CachedModelModule.prototype._loadModel = function (value, field) {
 						.ready(function (model) {
 							if (model) {
 								// if we found a model, update the field/value mapping to the id
-								_self.redis.set(_self._buildCacheKey({key : field}, [value]), model.id);
+								_self._redis().set(_self._buildCacheKey({key : field}, [value]), model.id);
 							} else {
 								// if we did not find the model, 
-								_self.redis.del(_self._buildCacheKey({key : field}, [value]));
+								_self._redis().del(_self._buildCacheKey({key : field}, [value]));
 							}
 
 							find_id_request._ready(model);
@@ -646,8 +650,8 @@ CachedModelModule.prototype._loadModel = function (value, field) {
 					CachedModelModule.super_.prototype._loadModel.call(_self, value, field)
 						.ready(function (model) {
 							if (model) {
-								_self.redis.set(_self._buildCacheKey({key : field}, [value]), model.id);
-								_self.redis.hmset(_self._buildCacheKey([model.id]), model.dataObject());
+								_self._redis().set(_self._buildCacheKey({key : field}, [value]), model.id);
+								_self._redis().hmset(_self._buildCacheKey([model.id]), model.dataObject());
 							}
 
 							find_id_request._ready(model);
@@ -667,7 +671,7 @@ CachedModelModule.prototype._loadModel = function (value, field) {
 CachedModelModule.prototype._findId = function (value, field) {
 	var cache_request = new ModelRequest(this);
 
-	this.redis.get(this._buildCacheKey({key : field}, [value]), function (err, id) {
+	this._redis().get(this._buildCacheKey({key : field}, [value]), function (err, id) {
 		if (err) {
 			return cache_request._error(err);
 		}
@@ -688,7 +692,7 @@ CachedModelModule.prototype._loadById = function (id) {
 	var cache_request = new ModelRequest(this);
 
 	// get a whole redis hash
-	this.redis.hgetall(_self._buildCacheKey([id]), function (err, data) {
+	this._redis().hgetall(_self._buildCacheKey([id]), function (err, data) {
 		if (err) {
 			return cache_request._error(err);
 		}
@@ -702,7 +706,7 @@ CachedModelModule.prototype._loadById = function (id) {
 			.ready(function (model) {
 				if (model) {
 					// if we find the db value, update the mapping
-					_self.redis.hmset(_self._buildCacheKey([model.id]), model.dataObject());
+					_self._redis().hmset(_self._buildCacheKey([model.id]), model.dataObject());
 				}
 
 				cache_request._ready(model);
@@ -719,9 +723,14 @@ CachedModelModule.prototype._loadById = function (id) {
  * @param {[type]} definition [description]
  */
 CachedModelModule.prototype.setModel = function (definition) {
+	var model_module = this;
+
 	CachedModelModule.super_.prototype.setModel.call(this, definition, CachedModel);
-	// todo: I don't like this, find another way to access the redis object
-	this.Model.prototype.redis = this.redis;
+
+	this.Model.prototype._redis = function () {
+		return model_module._redis();
+	}
+
 	this._cache_prefix = 'models:' + this._definition.table;
 };
 
@@ -742,7 +751,7 @@ util_module.inherits(CachedModel, Model);
  * todo: pull this out of the model, and have save and delete work in another way, maybe reference the cached model by the db name or something.
  * @type {[type]}
  */
-CachedModel.prototype.redis = null;
+CachedModel.prototype._redis = null;
 
 /**
  * Update the model in the database, and in the cache
@@ -754,7 +763,7 @@ CachedModel.prototype.save = function () {
 
 	return CachedModel.super_.prototype.save.call(this)
 		.addModifier(function (model) {
-			_self.redis.hmset('models:' + _self._definition.table + ':' + _self.id, _self.dataObject(), function (err) {
+			_self._redis().hmset('models:' + _self._definition.table + ':' + _self.id, _self.dataObject(), function (err) {
 				if (err) {
 					// todo: do more here
 					console.log(err);
@@ -776,7 +785,7 @@ CachedModel.prototype['delete'] = function () {
 
 	return CachedModel.super_.prototype['delete'].call(this)
 		.addModifier(function (model) {
-			_self.redis.del('models:' + _self._definition.table + ':' + old_id, function (err, response) {
+			_self._redis().del('models:' + _self._definition.table + ':' + old_id, function (err, response) {
 				if (err) {
 					// todo: do more here
 					console.log(err);

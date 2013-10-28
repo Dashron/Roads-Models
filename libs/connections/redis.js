@@ -16,7 +16,7 @@ var RedisConnection = module.exports = function (config) {
 
 util_module.inherits(RedisConnection, ConnectionType);
 
-RedisConnection.prorotype.connect = function (callback) {
+RedisConnection.prototype.connect = function (callback) {
 	var _self = this;
 	var connection = redis_module.createClient(this.config.port, this.config.host, this.config.options);
 
@@ -35,8 +35,10 @@ RedisConnection.prorotype.connect = function (callback) {
 	});
 
 	this._connection = connection;
+	return this;
 }
 
 RedisConnection.prototype.disconnect = function () {
 	this._connection.quit();
+	return this;
 };

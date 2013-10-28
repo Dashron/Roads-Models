@@ -36,4 +36,5 @@ MysqlConnection.prototype.connect = function (callback) {
 
 MysqlConnection.prototype.disconnect = function () {
 	this._connection.end();
+	return this;
 };
