@@ -17,12 +17,29 @@ module.exports.addConnectionType = function (key, connection_type) {
 };
 
 /**
+ * [ description]
+ * @param  {[type]} key [description]
+ * @return {[type]}     [description]
+ */
+module.exports.getConnectionType = function (type) {
+	if (!connection_types[type]) {
+		connection_types[type] = require('./connections/' + type + '.js');
+	}
+
+	return connection_types[type];
+};
+
+/**
  *
  * Returns the actual library object for the connection (eg. the redis client, not the roads-models redis connection object)
  *
  */
-module.exports.getConnection = function (type, connection_type) {
-	return connections[type][connection_type].connection;
+module.exports.getConnection = function (type, label) {
+	if (!connections[type][label]) {
+		throw new Error('You have not made a ' + type + ' connection called "' + label + '"');
+	}
+
+	return connections[type][label];
 };
 
 /**
@@ -32,23 +49,7 @@ module.exports.getConnection = function (type, connection_type) {
  */
 module.exports.connect = function (config)
 {
-	var promise = new module.exports.ConnectionRequest(config);
-	var type = null;
-	var key = null;
-
-	for (type in config) {
-		connections[type] = {};
-
-		for (key in config[type]) {
-			if (!connection_types[type]) {
-				throw new Error('Unsupported connection type : ' + type);
-			}
-
-			promise.connect(type, key);
-		}
-	}
-
-	return promise;
+	return (new module.exports.ConnectionRequest(config)).connect();
 };
 
 /**
@@ -58,14 +59,14 @@ module.exports.connect = function (config)
 module.exports.disconnect = function ()
 {
 	var type = null;
-	var key = null;
+	var label = null;
 	var connection_type = null;
 
 	for (type in connections) {
 		connection_type = connections[type];
 
-		for (key in connection_type) {
-			connection_type[key].disconnect();
+		for (label in connection_type) {
+			connection_type[label].disconnect();
 		}
 	}
 };
@@ -83,9 +84,10 @@ var ConnectionRequest = module.exports.ConnectionRequest = function (config) {
 };
 
 ConnectionRequest.prototype._ready = function (data) {
-	this.ready = function (fn) {
-		fn(data);
-	};
+	if (!Object.keys(this._in_progress).length) {
+		return this._final_ready();
+	}
+	return this;
 };
 
 ConnectionRequest.prototype._error = function (err) {
@@ -95,8 +97,14 @@ ConnectionRequest.prototype._error = function (err) {
 };
 
 ConnectionRequest.prototype.ready = function (fn) {
-	this._ready = fn;
+	this._final_ready = fn;
 	return this;
+};
+
+ConnectionRequest.prototype._final_ready = function (data) {
+	this.ready = function (fn) {
+		fn(data);
+	}
 };
 
 ConnectionRequest.prototype.error = function (fn) {
@@ -107,149 +115,59 @@ ConnectionRequest.prototype.error = function (fn) {
 ConnectionRequest.prototype._in_progress = null;
 ConnectionRequest.prototype._config = null;
 
-ConnectionRequest.prototype.connect = function (type, key) {
+ConnectionRequest.prototype.connect = function () {
+	var type = null;
+	var label = null;
+
+	for (type in this._config) {
+		if (!connections[type]) {
+			connections[type] = {};
+		}
+
+		for (label in this._config[type]) {
+			// populate an empty object so we don't have type errors
+			if (!this._in_progress[type]) {
+				this._in_progress[type] = {};
+			}
+
+			// don't allow the same connection to be made multiple times simultaniously
+			if (this._in_progress[type][label]) {
+				continue;
+			}
+
+			connections[type][label] = this._connect(type, label);
+		}
+	}
+
+	return this;
+};
+
+ConnectionRequest.prototype._connect = function (type, label) {
 	var _self = this;
 
-	if (!_self._in_progress[type]) {
-		_self._in_progress[type] = {};
-	}
+	// mark a connection as in progress
+	_self._in_progress[type][label] = true;
 
-	_self._in_progress[type][key] = true;
+	return this._connection(type, this._config[type][label])
+		.connect(function () {
+			console.info('Connection complete for : ' + type + ' : ' + label);
+			delete _self._in_progress[type][label];
 
-	console.log("Adding connection for : " + type + ' : ' + key);
-	var ConnectionType = connection_types[type];
+			// once all of one type have been loaded, clear it out
+			if (!Object.keys(_self._in_progress[type]).length) {
+				delete _self._in_progress[type];
+			}
 
-	if (!ConnectionType) {
-		throw new Error('Could not location connection type [' + type + ']');
-	}
-
-	var connection = new ConnectionType(_self._config[type][key]);
-	
-	connection.ready(function (err, connection) {
-		console.log('Connection complete for : ' + type + ' : ' + key);
-		if (err) {
-			return _self._error(err);
-		}
-
-		delete _self._in_progress[type][key];
-
-		// once all of one type have been loaded, clear it out
-		if (!Object.keys(_self._in_progress[type]).length) {
-			delete _self._in_progress[type];
-		}
-
-		// once all have been loaded, mark as ready
-		if (!Object.keys(_self._in_progress).length) {
 			_self._ready();
-		}
-	});
+		}).error(function (err) {
+			console.error('Connection error for : ' + type + ' : ' + label);
+			console.error(err);
+			this._error(err);
+		});
+}
 
-	connections[type][key] = connection;
-};
-
-
-
-/**
- * [ description]
- * @param  {[type]} config [description]
- * @return {[type]}        [description]
- */
-var ConnectionType = module.exports.ConnectionType = function (config) {
-	this.config = config;
-};
-
-ConnectionType.prototype.connection = null;
-ConnectionType.prototype.config = null;
-
-ConnectionType.prototype._ready = function (data) {
-	this.ready = function (fn) {
-		fn(data);
-	};
-};
-
-ConnectionType.prototype.ready = function (fn) {
-	this._ready = fn;
-};
-
-var redis_module = null;
-
-/**
- * Returns the connection for the provided label.
- * If no connection has been created, this attempts to create the connection using the provided config.
- * 
- * @param  {String} label
- * @param  {Object} config {port: , host: , options: }
- * @return {Connection}
- */
-var RedisConnection = module.exports.Redis = function (config) {
-	var _self = this;
-	ConnectionType.call(this, config);
-
-	if (!redis_module) {
-		redis_module = require('redis');
-	}
-	
-	this.connection = redis_module.createClient(config.port, config.host, config.options);
-
-	if (config.password) {
-		this.connection.auth(config.password, function () {});
-	}
-
-	// todo handle reconnection and authentication
-	this.connection.on('connect', function () {
-		// we only track pre-connection errors in this system
-		_self._ready(null, _self.connection);
-	});
-
-	this.connection.on('error', function (err) {
-		_self._ready(err);
-	});
-};
-
-util_module.inherits(RedisConnection, ConnectionType);
-
-RedisConnection.prototype.disconnect = function () {
-	this.connection.quit();
-};
-
-
-var mysql_module = null;
-
-/**
- * [ description]
- * @param  {[type]} config [description]
- * @return {[type]}        [description]
- */
-var MysqlConnection = module.exports.Mysql = function (config) {
-	var _self = this;
-	ConnectionType.call(this, config);
-	
-	if (!mysql_module) {
-		mysql_module = require('mysql');
-	}
-
-	this.connection = mysql_module.createConnection(config);
-	
-	//todo handle reconnection
-	this.connection.on('error', function (err) {
-		_self._ready(err);
-	});
-
-	this.connection.connect(function (err) {
-		if (err) {
-			_self._ready(err);
-		} else {
-			_self._ready(null, _self.connection);
-		}
-	});
-};
-
-util_module.inherits(MysqlConnection, ConnectionType);
-
-MysqlConnection.prototype.disconnect = function () {
-	this.connection.end();
-};
-
-// todo move this into the config
-module.exports.addConnectionType("mysql", MysqlConnection);
-module.exports.addConnectionType("redis", RedisConnection);
+ConnectionRequest.prototype._connection = function (type, config) {
+	var ConnectionType = module.exports.getConnectionType(type);
+	console.log(ConnectionType.toString());
+	return new ConnectionType(config);
+}

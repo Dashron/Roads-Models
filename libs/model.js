@@ -59,8 +59,6 @@ Model.prototype._onDelete = function (request) {
 	request._ready(null);
 };
 
-Model.prototype._connection = null;
-
 /**
  * [ description]
  * @return {[type]} [description]
@@ -100,7 +98,7 @@ Model.prototype.save = function () {
 				}
 
 				// perfom the insert
-				_self._connection.query(
+				_self._query(
 					'insert into `' + _self._definition.table + '` (`' + keys.join('`, `') + '`) VALUES (' + placeholders.join(', ') + ')', 
 					values,
 					function(error, result) {
@@ -128,7 +126,7 @@ Model.prototype.save = function () {
 				values.push(_self.id);
 
 				// perform the update
-				_self._connection.query(
+				_self._query(
 					'update `' + _self._definition.table + '` set `' + keys.join('` = ?, `') + '` = ? where `id` = ?', 
 					values, 
 					function (error, result) {
@@ -166,7 +164,7 @@ Model.prototype['delete'] = function () {
 	var _self = this;
 
 	// go right to the db for the delete, since it's an easy query no preparation is necessary
-	this._connection.query('delete from `' + this._definition.table + '` where `id` = ?', 
+	this._query('delete from `' + this._definition.table + '` where `id` = ?', 
 		[this.id], 
 		function (error, result) {
 			// include the result in the response for the delete event
@@ -244,6 +242,10 @@ var ModelModule = module.exports.ModelModule = function ModelModule () {
 ModelModule.prototype.connection = null;
 ModelModule.prototype._definition = null;
 
+ModelModule.prototype._query = function (sql, params, callback) {
+	this.connection.getConnection().query(sql, params, callback);
+};
+
 /**
  * Assign a model definition to this modelmodule
  *
@@ -269,8 +271,6 @@ ModelModule.prototype.setModel = function (definition, model_class) {
 	NewModel.prototype._definition = definition;
 	applyModelMethods(NewModel, definition);
 	applyModelFields(NewModel, definition);
-
-	NewModel.prototype._connection = model_module.connection;
 	
 	if (definition.events) {
 		if (definition.events.onSave) {
@@ -281,6 +281,10 @@ ModelModule.prototype.setModel = function (definition, model_class) {
 			NewModel.prototype._onDelete = definition.events.onDelete;
 		}
 	}
+
+	NewModel.prototype._query = function (sql, params, callback) {
+		return model_module._query(sql, params, callback);
+	};
 
 	this.Model = NewModel;
 };
@@ -358,7 +362,7 @@ ModelModule.prototype.collection = function (sql, params, options) {
 	sql = this._apply_pagination(sql, options);
 
 	// run the query
-	this.connection.query(sql, params, function (err, rows, columns) {
+	this._query(sql, params, function (err, rows, columns) {
 		if (err) {
 			return request._error(err);
 		}
