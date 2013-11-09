@@ -168,6 +168,5 @@ ConnectionRequest.prototype._connect = function (type, label) {
 
 ConnectionRequest.prototype._connection = function (type, config) {
 	var ConnectionType = module.exports.getConnectionType(type);
-	console.log(ConnectionType.toString());
 	return new ConnectionType(config);
 }

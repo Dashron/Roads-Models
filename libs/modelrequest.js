@@ -115,6 +115,11 @@ ModelRequest.prototype.preload = function (field) {
 
 	var assign_to = field_definition.assign_to;
 
+	// allow a string for the model module, in case a user needs circular dependencies
+	if (typeof field_definition.model_module === "string") {
+		field_definition.model_module = require(field_definition.model_module);
+	}
+
 	if (typeof field_definition.model_module !== "object") {
 		throw new Error('Any preloaded objects must have a model field in their definition');
 	}
