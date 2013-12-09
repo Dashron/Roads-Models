@@ -308,8 +308,8 @@ ModelModule.prototype.setModel = function (definition, model_class) {
 ModelModule.prototype.load = function (value, field) {
 	var _self = this;
 
-	if (typeof value === "undefined") {
-		throw new Error('You can not load a model with an undefined value');
+	if (typeof value === "undefined" || value === null) {
+		throw new Error('You can not load a model with an undefined or null value');
 	}
 
 	if (typeof field !== "string") {
