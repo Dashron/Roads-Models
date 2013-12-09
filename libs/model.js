@@ -14,6 +14,11 @@ function fix_data_type (definition, value) {
 		value = Number(value);
 	}
 
+	// Standardize around null values instead of emptystring
+	if (definition.nullable && value === '') {
+		value = null;
+	}
+
 	return value;
 }
 
@@ -196,14 +201,18 @@ Model.prototype.toString = function () {
  * [ description]
  * @return {[type]} [description]
  */
-Model.prototype.dataObject = function () {
+Model.prototype.dataObject = function (filter) {
 	var data = {};
 
 	for (var field in this._definition.fields) {
 		if (field === 'definition') {
 			throw new Error('Invalid model definition provided. "definition" is a reserved word');
 		}
-		data[field] = this[field];
+		if (filter) {
+			data[field] = filter(this[field]);
+		} else {
+			data[field] = this[field];
+		}
 	}
 
 	return data;
@@ -298,6 +307,10 @@ ModelModule.prototype.setModel = function (definition, model_class) {
  */
 ModelModule.prototype.load = function (value, field) {
 	var _self = this;
+
+	if (typeof value === "undefined") {
+		throw new Error('You can not load a model with an undefined value');
+	}
 
 	if (typeof field !== "string") {
 		field = "id";

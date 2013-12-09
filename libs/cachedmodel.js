@@ -519,7 +519,10 @@ CachedModelModule.prototype._loadArray = function (ids) {
 
 	// build the multi redis call, with a chain of hgetall commands
 	ids.forEach(function (id) {
-		multi_get.hgetall(_self._buildCacheKey([id]));
+		// protect against potential invalid data
+		if (!isNaN(Number(id))) {
+			multi_get.hgetall(_self._buildCacheKey([id]));
+		}
 	});
 
 	// run the multi redis call
@@ -589,7 +592,14 @@ CachedModelModule.prototype._fillMissingCacheValues = function (cached_models, r
 			if (model) {
 				cached_models[i] = model;
 				// set this item, which was not originally found in redis, back into redis
-				multi_set.hmset(this._buildCacheKey([model.id]), model.dataObject());
+				multi_set.hmset(this._buildCacheKey([model.id]), model.dataObject(function (val) {
+					// redis can not handle null or undefined, it needs to be an empty string
+					if (val === null || typeof val === "undefined") {
+						return '';
+					} else {
+						return val;
+					}
+				}));
 			} else {
 				// if the model is not found, use null. this is likely data integrity issues
 				cached_models[i] = null;
