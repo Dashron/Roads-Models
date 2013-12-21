@@ -520,7 +520,7 @@ CachedModelModule.prototype._loadArray = function (ids) {
 	// build the multi redis call, with a chain of hgetall commands
 	ids.forEach(function (id) {
 		// protect against potential invalid data
-		if (!isNaN(Number(id))) {
+		if (id != '' && !isNaN(Number(id))) {
 			multi_get.hgetall(_self._buildCacheKey([id]));
 		}
 	});
