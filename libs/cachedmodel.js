@@ -544,19 +544,16 @@ CachedModelModule.prototype._loadArray = function (ids) {
 
 		// If there were any items not found in cache, find them in the database
 		if (sql_ids.length) {
-			var id_list = sql_ids.join(',');
-
 			// run the query, and sort it by the exact order we have our id's in
-			_self._query('select * from `' + _self._definition.table + 
-					'` where `id` in (' + id_list + ') ORDER BY FIELD (`id`,' + id_list + ')', function (err, rows) {
-				if (err) {
-					return model_request._error(err);
-				}
-
-				// fill the empty holes in the cached_model list with the result from the query
-				cached_models = _self._fillMissingCacheValues(cached_models, rows, ids);
-				model_request._ready(cached_models);
-			});
+			CachedModelModule.super_.prototype._loadArray.call(_self, sql_ids)
+				.error(function (err) {
+					model_request._error(err);
+				})
+				.ready(function (rows) {
+					// fill the empty holes in the cached_model list with the result from the query
+					cached_models = _self._fillMissingCacheValues(cached_models, rows, ids);
+					model_request._ready(cached_models);
+				});
 		} else {
 			model_request._ready(cached_models);
 		}
@@ -579,9 +576,8 @@ CachedModelModule.prototype._fillMissingCacheValues = function (cached_models, r
 
 	// build a list of id => model. This is necessary because the db won't return duplicate records if an id is used more than once
 	// We have to map the returned rows to their id, then match up the empty cached list
-	while (rows.length) {
-		model = new this.Model(rows.shift());
-		db_values[model.id] = model;
+	for (i = 0; i < rows.length; i++) {
+		db_values[rows[i].id] = rows[i];
 	}
 
 	// Merge the records from the id => model pairing back into the empty redis cached_models
