@@ -51,15 +51,36 @@ var Model = module.exports.Model = function Model (data) {
 	// we have to set this a second time to wipe out any updated field markers from setting the initial data
 	this._updated_fields = {};
 };
-// todo: flywheel this off of the table name
+
 Model.prototype._definition = null;
 
-// todo: add another underscore to this so it won't conflict with a field called updated_fields
+/**
+ * Associated model module
+ * @type {[type]}
+ */
+Model.prototype._module = null;
+
+/**
+ * A list of all fields that have been changed since the model was created
+ * @type {[type]}
+ */
 Model.prototype._updated_fields = null;
+
+/**
+ * default save handler
+ * @param  {[type]} request [description]
+ * @return {[type]}         [description]
+ */
 Model.prototype._onSave = function (request) {
 	request._ready(this);
 };
 
+/**
+ * default delete handler
+ * 
+ * @param  {[type]} request [description]
+ * @return {[type]}         [description]
+ */
 Model.prototype._onDelete = function (request) {
 	request._ready(null);
 };
@@ -93,59 +114,32 @@ Model.prototype.save = function () {
 			}
 
 			if (typeof _self.id === "undefined" || _self.id === null) {
-				// If there's no id, it's going to be saved as a new model
-				var placeholders = [];
-
-				// build the parameter values for the sql query
-				for (i = 0; i < keys.length; i++) {
-					values.push(_self['_' + keys[i]]);
-					placeholders.push('?');
-				}
-
 				// perfom the insert
-				_self._query(
-					'insert into `' + _self._definition.table + '` (`' + keys.join('`, `') + '`) VALUES (' + placeholders.join(', ') + ')', 
-					values,
-					function(error, result) {
-						request.result = result;
+				_self._module.connection.insert(_self._definition.table, _self._updated_fields, function (error, result) {
+					request.result = result;
 
-						if (error) {
-							return request._error(error);
-						}
-
-						// update the model object to reflect the insert
-						_self.id = result.insertId;
-						_self._updated_fields = [];
-						_self._onSave(request);
+					if (error) {
+						return request._error(error);
 					}
-				);
+
+					// update the model object to reflect the insert
+					_self.id = result.insertId;
+					_self._updated_fields = [];
+					_self._onSave(request);
+				});
 			} else {
-				// we have an id, so we should update
-				
-				// build a list of my values and update them all
-				for (i = 0; i < keys.length; i++) {
-					values.push(_self['_' + keys[i]]);
-				}
-				
-				// add the id to the end of the values (for the where statement)
-				values.push(_self.id);
-
 				// perform the update
-				_self._query(
-					'update `' + _self._definition.table + '` set `' + keys.join('` = ?, `') + '` = ? where `id` = ?', 
-					values, 
-					function (error, result) {
-						request.result = result;
-						
-						if (error) {
-							return request._error(error);
-						}
-
-						// update the model to reflect the update
-						_self._updated_fields = [];
-						_self._onSave(request);
+				_self._module.connection.update(_self._definition.table, _self.id, _self._updated_fields, function (error, result) {
+					request.result = result;
+					
+					if (error) {
+						return request._error(error);
 					}
-				);
+
+					// update the model to reflect the update
+					_self._updated_fields = [];
+					_self._onSave(request);
+				});
 			}
 		}).validateFields();
 
@@ -169,22 +163,19 @@ Model.prototype['delete'] = function () {
 	var _self = this;
 
 	// go right to the db for the delete, since it's an easy query no preparation is necessary
-	this._query('delete from `' + this._definition.table + '` where `id` = ?', 
-		[this.id], 
-		function (error, result) {
-			// include the result in the response for the delete event
-			delete_request.result = result;
+	this._module.connection.delete(this._definition.table, this.id, function (error, result) {
+		// include the result in the response for the delete event
+		delete_request.result = result;
 
-			if (error) {
-				return delete_request._error(error);
-			}
-
-			// clear out the model so that it reflects the delete
-			var old_id = _self.id;
-			_self.id = null;
-			_self._onDelete(delete_request, old_id);
+		if (error) {
+			return delete_request._error(error);
 		}
-	);
+
+		// clear out the model so that it reflects the delete
+		var old_id = _self.id;
+		_self.id = null;
+		_self._onDelete(delete_request, old_id);
+	});
 
 	return delete_request;
 };
@@ -291,9 +282,7 @@ ModelModule.prototype.setModel = function (definition, model_class) {
 		}
 	}
 
-	NewModel.prototype._query = function (sql, params, callback) {
-		return model_module._query(sql, params, callback);
-	};
+	NewModel.prototype._module = this;
 
 	this.Model = NewModel;
 };
@@ -331,7 +320,7 @@ ModelModule.prototype.load = function (value, field) {
  * @return ModelRequest
  */
 ModelModule.prototype._loadArray = function (ids) {
-	return this.collection('select * from `' + this._definition.table + '` where `id` in (' + Array(ids.length).join('?,') + '?)', ids);
+	return this.connection.selectByIds(this._definition.table, ids, this.collection.bind(this));
 };
 
 /**
@@ -342,9 +331,7 @@ ModelModule.prototype._loadArray = function (ids) {
  * @return {[type]}       
  */
 ModelModule.prototype._loadModel = function (value, field) {
-	return this.collection('select * from `' + this._definition.table + '` where `' + field + '` = ?',  [value], {
-		per_page : 1
-	})
+	return this.connection.selectByField(this._definition.table, field, value, this.collection.bind(this))
 	.addModifier(function (data) {
 		if (data.length) {
 			this._ready(data[0]);
