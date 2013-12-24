@@ -74,8 +74,8 @@ MysqlConnection.prototype.update = function (table, id, object, callback) {
 	return this.getConnection().query(sql, values, callback);
 }
 
-MysqlConnection.prototype.delete = function (table, id) {
-	var sql = 'delete from `' + this._definition.table + '` where `id` = ?';
+MysqlConnection.prototype.delete = function (table, id, callback) {
+	var sql = 'delete from `' + table + '` where `id` = ?';
 
 	return this.getConnection().query(sql, [id], callback);
 }
