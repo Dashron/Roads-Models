@@ -489,8 +489,8 @@ function addProperty (model, key, field_definition) {
 
 	if (field_definition.set) {
 		property.set = function (value) {
-			this._updated_fields[key] = true;
 			field_definition.set.call(this, value);
+			this._updated_fields[key] = this['_' + key];
 		};
 	}			
 
