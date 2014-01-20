@@ -122,10 +122,23 @@ Model.prototype.save = function () {
 						return request._error(error);
 					}
 
-					// update the model object to reflect the insert
-					_self.id = result.insertId;
-					_self._updated_fields = [];
-					_self._onSave(request);
+					// so I'm not totally happy with this, but there is a chance the db has defaults and decisions that our model system doesn't. 
+					// So this is a safer bet than duplicating a bunch of logic into the model system (which is likely not consistent between db versions or systems)
+					// todo: investigate optimization techniques or alternatives. Luckilly the intended use case is not very save heavy
+					_self._module._loadModel(result.insertId, 'id')
+						.error(request._error)
+						.ready(function (model) {
+							// update the model object to reflect the insert
+							_self.id = model.id;
+							var fields = model.dataObject();
+
+							for (var key in fields) {
+								_self['_' + key] = fields[key];
+							}
+
+							_self._updated_fields = [];
+							_self._onSave(request);
+						});
 				});
 			} else {
 				// perform the update
