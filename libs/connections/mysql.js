@@ -43,6 +43,7 @@ MysqlConnection.prototype.insert = function (table, object, callback) {
 	var keys = Object.keys(object);
 	var placeholders = [];
 	var values = [];
+	var sql = '';
 
 	// build the parameter values for the sql query
 	for (i = 0; i < keys.length; i++) {
@@ -50,7 +51,12 @@ MysqlConnection.prototype.insert = function (table, object, callback) {
 		placeholders.push('?');
 	}
 
-	var sql = 'insert into `' + table + '` (`' + keys.join('`, `') + '`) VALUES (' + placeholders.join(', ') + ')';
+	if (values.length) {
+		sql = 'insert into `' + table + '` (`' + keys.join('`, `') + '`) VALUES (' + placeholders.join(', ') + ')';
+	} else {
+		// wtf is this really how you do it?
+		sql = 'insert into `' + table + '` () VALUES ()';
+	}
 
 	return this.getConnection().query(sql, values, callback);
 };

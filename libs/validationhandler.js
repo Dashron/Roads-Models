@@ -22,7 +22,10 @@ ValidationHandler.prototype._data = null;
 ValidationHandler.prototype._invalid_fields = null;
 
 ValidationHandler.prototype._ready = function (err, field) {
-	delete this._data[field];
+	// allow null fields for empty inserts
+	if (field) {
+		delete this._data[field];
+	}
 
 	if (err) {
 		this._invalid_fields[field] = err;
@@ -45,6 +48,12 @@ ValidationHandler.prototype.ready = function (fn) {
 
 ValidationHandler.prototype.validateFields = function () {
 	var _self = this;
+
+	// if we are inserting a new object with no values
+	if (Object.keys(this._data).length === 0) {
+		_self._ready(null, null);
+	}
+
 	// handle this later so that all error handlers happen 
 	process.nextTick(function () {
 		for (var key in _self._data) {

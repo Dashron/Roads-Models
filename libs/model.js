@@ -99,7 +99,7 @@ Model.prototype.save = function () {
 	var i = 0;
 
 	// check if we should actually perform any updates. keys is list of updated fields
-	if (keys.length > 0) {
+	if (keys.length > 0 || typeof _self.id == "undefined") {
 		// Validation is handled through the ValidationHandler. I'm no longer sure why, probably worth a refactor
 		var validator = new ValidationHandler(this);
 		validator.ready(function (invalid_fields) {
