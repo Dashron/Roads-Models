@@ -59,7 +59,7 @@ Create the database using the following:
 
 	create database roadsmodelstest;
 	create user roadsmodelstest identified by 'roads';
-	grant all to roadsmodelstest on roadsmodelstest.*;
+	grant all on roadsmodelstest.* to roadsmodelstest;
 	use roadsmodelstest;
 
 	CREATE TABLE `user` (

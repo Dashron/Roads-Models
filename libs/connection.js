@@ -162,7 +162,7 @@ ConnectionRequest.prototype._connect = function (type, label) {
 		}).error(function (err) {
 			console.error('Connection error for : ' + type + ' : ' + label);
 			console.error(err);
-			this._error(err);
+			_self._error(err);
 		});
 }
 
