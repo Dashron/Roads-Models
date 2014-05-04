@@ -595,7 +595,13 @@ CachedModelModule.prototype._fillMissingCacheValues = function (cached_models, r
 					} else {
 						return val;
 					}
-				}));
+				}), function (err) {
+					if (err) {
+						// todo: do more here
+						console.log(err);
+					}
+					// unused but required for lib?
+				});
 			} else {
 				// if the model is not found, use null. this is likely data integrity issues
 				cached_models[i] = null;
@@ -657,7 +663,13 @@ CachedModelModule.prototype._loadModel = function (value, field) {
 						.ready(function (model) {
 							if (model) {
 								_self._redis().set(_self._buildCacheKey({key : field}, [value]), model.id);
-								_self._redis().hmset(_self._buildCacheKey([model.id]), model.dataObject());
+								_self._redis().hmset(_self._buildCacheKey([model.id]), model.dataObject(), function (err) {
+									if (err) {
+										// todo: do more here
+										console.log(err);
+									}
+									// unused but required for lib?
+								});
 							}
 
 							find_id_request._ready(model);
@@ -712,7 +724,13 @@ CachedModelModule.prototype._loadById = function (id) {
 			.ready(function (model) {
 				if (model) {
 					// if we find the db value, update the mapping
-					_self._redis().hmset(_self._buildCacheKey([model.id]), model.dataObject());
+					_self._redis().hmset(_self._buildCacheKey([model.id]), model.dataObject(), function (err) {
+						if (err) {
+							// todo: do more here
+							console.log(err);
+						}
+						// unused but required for lib?
+					});
 				}
 
 				cache_request._ready(model);
