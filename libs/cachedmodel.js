@@ -12,6 +12,16 @@ var ModelModule = model_component.ModelModule;
 var ModelRequest = require('./modelrequest').ModelRequest;
 var Model = model_component.Model;
 
+var fix_nulls = function (obj) {
+	for (var key in obj) {
+		if (obj[key] === null || typeof obj[key] === "undefined") {
+			delete obj[key];
+		}
+	}
+
+	return obj;
+};
+
 var CachedModelModule = module.exports.CachedModelModule = function CachedModelModule () {
 	ModelModule.call(this);
 };
@@ -588,14 +598,7 @@ CachedModelModule.prototype._fillMissingCacheValues = function (cached_models, r
 			if (model) {
 				cached_models[i] = model;
 				// set this item, which was not originally found in redis, back into redis
-				multi_set.hmset(this._buildCacheKey([model.id]), model.dataObject(function (val) {
-					// redis can not handle null or undefined, it needs to be an empty string
-					if (val === null || typeof val === "undefined") {
-						return '';
-					} else {
-						return val;
-					}
-				}), function (err) {
+				multi_set.hmset(this._buildCacheKey([model.id]), fix_nulls(model.dataObject()), function (err) {
 					if (err) {
 						// todo: do more here
 						console.log(err);
@@ -663,7 +666,7 @@ CachedModelModule.prototype._loadModel = function (value, field) {
 						.ready(function (model) {
 							if (model) {
 								_self._redis().set(_self._buildCacheKey({key : field}, [value]), model.id);
-								_self._redis().hmset(_self._buildCacheKey([model.id]), model.dataObject(), function (err) {
+								_self._redis().hmset(_self._buildCacheKey([model.id]), fix_nulls(model.dataObject()), function (err) {
 									if (err) {
 										// todo: do more here
 										console.log(err);
@@ -724,7 +727,7 @@ CachedModelModule.prototype._loadById = function (id) {
 			.ready(function (model) {
 				if (model) {
 					// if we find the db value, update the mapping
-					_self._redis().hmset(_self._buildCacheKey([model.id]), model.dataObject(), function (err) {
+					_self._redis().hmset(_self._buildCacheKey([model.id]), fix_nulls(model.dataObject()), function (err) {
 						if (err) {
 							// todo: do more here
 							console.log(err);
@@ -787,7 +790,7 @@ CachedModel.prototype.save = function () {
 
 	return CachedModel.super_.prototype.save.call(this)
 		.addModifier(function (model) {
-			_self._redis().hmset('models:' + _self._definition.table + ':' + _self.id, _self.dataObject(), function (err) {
+			_self._redis().hmset('models:' + _self._definition.table + ':' + _self.id, fix_nulls(_self.dataObject()), function (err) {
 				if (err) {
 					// todo: do more here
 					console.log(err);

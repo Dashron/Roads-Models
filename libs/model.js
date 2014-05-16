@@ -15,7 +15,7 @@ function fix_data_type (definition, value) {
 	}
 
 	// Standardize around null values instead of emptystring
-	if (definition.nullable && value === '') {
+	if (definition.nullable && typeof value === "undefined") {
 		value = null;
 	}
 
@@ -37,15 +37,12 @@ var Model = module.exports.Model = function Model (data) {
 	// we have to set this here because the prototype has to be null otherwise all objects share the field list
 	this._updated_fields = {};
 
-	for (var key in data) {
-		if (!data.hasOwnProperty(key)) {
+	for (var key in this._definition.fields) {
+		if (!this._definition.fields.hasOwnProperty(key)) {
 			continue;
 		}
 
-		if (this._definition.fields[key]) {
-			// make sure the datatype in the object is accurate
-			this['_' + key] = fix_data_type(this._definition.fields[key], data[key]);
-		}
+		this['_' + key] = fix_data_type(this._definition.fields[key], data[key]);
 	}
 
 	// we have to set this a second time to wipe out any updated field markers from setting the initial data
