@@ -37,12 +37,15 @@ var Model = module.exports.Model = function Model (data) {
 	// we have to set this here because the prototype has to be null otherwise all objects share the field list
 	this._updated_fields = {};
 
-	for (var key in this._definition.fields) {
-		if (!this._definition.fields.hasOwnProperty(key)) {
-			continue;
-		}
+	// creating new records will have no data
+	if (data) {
+		for (var key in this._definition.fields) {
+			if (!this._definition.fields.hasOwnProperty(key)) {
+				continue;
+			}
 
-		this['_' + key] = fix_data_type(this._definition.fields[key], data[key]);
+			this['_' + key] = fix_data_type(this._definition.fields[key], data[key]);
+		}
 	}
 
 	// we have to set this a second time to wipe out any updated field markers from setting the initial data
