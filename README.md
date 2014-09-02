@@ -1,3 +1,8 @@
+NOTE
+=====
+
+This library is not currently under active development. In the future (likely months away from this commit) this will become a redis caching layer that can float on top of any DB layer. Personally I have moved to sequelize for my ORM, and that will be the first library that this supports!
+
 Roads-Models
 ============
 
